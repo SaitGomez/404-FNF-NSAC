@@ -1,4 +1,6 @@
-# FlameBench
+# 404:FNF fire safety workbench
+
+Formerly "FlameBench"; the interface now carries the team name, 404:FNF.
 
 A web fire-safety workbench for space habitats (NASA Space Apps 2026, *Flame in Freefall* challenge). It brings the 24 NASA PSI combustion investigations into one comparable table and adds external evidence with its evidence level stated.
 
@@ -9,6 +11,14 @@ The dashboard interface is in English.
 **FlameBench does not certify materials, and it does not predict in general what will burn on the Moon or on Mars.** Material certification is governed by NASA-STD-6001, not by this tool.
 
 Where the app shows a boundary, a limit or a prediction, that number is a calculation or an extrapolation from a specific experiment, and the view says which. The flammability boundary it draws is calibrated on PMMA rods at about one atmosphere; outside that case it is a reference curve that classifies nothing. Treat it as a tool for finding which experimental evidence applies to a scenario, and where evidence is missing.
+
+## Visual system
+
+The interface uses the 404:FNF "two flames" look: graphite surfaces, **ember** for fire, risk and primary actions, and **CH\* blue** for extinguished outcomes and official PSI evidence. It is dark by default; the sun/moon button in the top bar switches to the light theme and remembers the choice in this browser.
+
+All of it lives in the `<style>` block of `src/app.html`. The charts and views read the same CSS variables as before (`--s1`, `--s2`, `--g1`, `--accent` and so on), so restyling never touches the application logic. A small second `<script>` at the end of the file handles the theme button and replays the entrance of the work area when the visible view changes; it reads the app state and does not modify it.
+
+Fonts: Urbanist and JetBrains Mono (both OFL), loaded from Google Fonts. The mark in the top bar is embedded in the file.
 
 ## Structure
 
