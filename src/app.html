@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlameBench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Layout: workbench. Components on the left; schematic, toolbox and work area in the centre; assistant on the right. */
+  --bg:#eef0f3; --panel:#ffffff; --panel2:#f6f7f9; --ink:#141922; --ink2:#4c5564; --line:#d3d8e0;
+  --accent:#1d5fc4; --accent-soft:#e3edfb; --g1:#c2571a;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --mute:#9aa3b0;
+  --good:#1a7f4b; --warn:#a36a00; --crit:#b3261e; --good-bg:#e2f3ea; --warn-bg:#fbefd6; --crit-bg:#fbe4e2;
+  --display:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif; --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ color-scheme:dark;
+  --bg:#12151a; --panel:#1b1f26; --panel2:#222730; --ink:#e9ecf1; --ink2:#a9b1bd; --line:#363d49;
+  --accent:#6ea6f2; --accent-soft:#1f3250; --g1:#e58a52; --s1:#3987e5; --s2:#d95926; --s3:#199e70; --mute:#6b7482;
+  --good:#5cc48d; --warn:#e0a83a; --crit:#f0837b; --good-bg:#173527; --warn-bg:#3a2d10; --crit-bg:#43201d; } }
+:root[data-theme="dark"]{ color-scheme:dark;
+  --bg:#12151a; --panel:#1b1f26; --panel2:#222730; --ink:#e9ecf1; --ink2:#a9b1bd; --line:#363d49;
+  --accent:#6ea6f2; --accent-soft:#1f3250; --g1:#e58a52; --s1:#3987e5; --s2:#d95926; --s3:#199e70; --mute:#6b7482;
+  --good:#5cc48d; --warn:#e0a83a; --crit:#f0837b; --good-bg:#173527; --warn-bg:#3a2d10; --crit-bg:#43201d; }
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--body);display:flex;flex-direction:column}
+h1,h2,h3,h4{margin:0;text-wrap:balance}
+h2{font:600 17px/1.2 var(--display);letter-spacing:.01em}
+h3{font:600 14px/1.3 var(--body)}
+h4{font:600 12px/1.3 var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--ink2)}
+p{margin:0}
+a{color:var(--accent)}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:5px 10px}
+button:hover{border-color:var(--accent)}
+button.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+button.ghost{border-color:transparent;background:transparent;padding:3px 6px}
+button:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+select,input[type=number],input[type=text]{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:4px 6px}
+input[type=range]{accent-color:var(--accent);width:150px;vertical-align:middle}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--ink2)} .small{font-size:12px}
+header{display:flex;gap:14px;align-items:center;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header .brand{font:600 20px/1 var(--display);letter-spacing:.02em}
+header .brand span{color:var(--accent)}
+header .tag{color:var(--ink2);font-size:12.5px;flex:1;min-width:200px}
+#app{flex:1;min-height:0;display:grid;grid-template-columns:212px minmax(0,1fr) 320px;gap:0}
+#app.noai{grid-template-columns:212px minmax(0,1fr)}
+#app.noai #ai{display:none}
+aside{background:var(--panel);overflow:auto;padding:12px}
+#pal{border-right:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+#ai{border-left:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+main{min-width:0;display:flex;flex-direction:column;min-height:0}
+.comp{border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:6px;padding:8px;background:var(--panel2);cursor:grab;display:flex;flex-direction:column;gap:4px}
+.comp b{font-size:13.5px}
+.comp .row{display:flex;justify-content:space-between;align-items:center;gap:6px}
+#canvasWrap{position:relative;background:var(--panel2);border-bottom:1px solid var(--line);padding:10px 16px 22px;min-height:132px}
+#canvasWrap.over{outline:2px dashed var(--accent);outline-offset:-4px}
+#canvas{display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start;position:relative;z-index:1}
+#wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.blk{width:214px;background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.blk.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.blk.drop{outline:2px dashed var(--accent)}
+.blk-h{display:flex;align-items:center;gap:6px;padding:4px 8px;background:var(--accent);color:#fff;font-weight:600;font-size:12.5px}
+.blk-h .lt{font-family:var(--mono);background:#ffffff33;border-radius:4px;padding:0 5px}
+.blk-h button{margin-left:auto;color:#fff;border:0;background:transparent;padding:0 4px;font-size:15px;line-height:1}
+.blk ol{list-style:none;margin:0;padding:0}
+.cell{display:flex;gap:6px;align-items:center;padding:4px 8px;border-top:1px solid var(--line);cursor:pointer;font-size:12.5px}
+.cell:hover{background:var(--accent-soft)}
+.cell.on{background:var(--accent-soft);font-weight:600}
+.cell .n{font-family:var(--mono);color:var(--ink2);width:14px}
+.cell .stt{margin-left:auto;font-family:var(--mono);font-size:11.5px}
+.stt.ok{color:var(--good)} .stt.q{color:var(--warn)}
+.blk-f{padding:4px 8px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink2);display:flex;gap:6px;align-items:center}
+.blk-f select{font-size:11.5px;padding:1px 4px;max-width:150px}
+.hint{color:var(--ink2);font-size:12.5px;align-self:center;max-width:300px}
+#ribbon{background:var(--panel);border-bottom:1px solid var(--line);padding:8px 16px;display:flex;gap:8px 18px;flex-wrap:wrap;align-items:center;font-size:12.5px}
+#ribbon .grp{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#ribbon label{display:flex;gap:5px;align-items:center}
+#ribbon .ttl{font:600 11px/1 var(--body);text-transform:uppercase;letter-spacing:.07em;color:var(--ink2);width:100%}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{border:0;border-radius:0;border-right:1px solid var(--line);padding:4px 9px;background:var(--panel)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--accent);color:#fff}
+#work{flex:1;min-height:0;overflow:auto;padding:14px 16px 28px;display:flex;flex-direction:column;gap:14px}
+.steps{display:flex;gap:4px;flex-wrap:wrap}
+.steps button{border-radius:6px 6px 0 0;border-bottom:2px solid transparent;background:transparent;border-color:transparent}
+.steps button.on{border-bottom-color:var(--accent);color:var(--accent);font-weight:600}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.grid2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px}
+.grid2e{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.tw{overflow:auto;max-height:420px;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{position:sticky;top:0;background:var(--panel2);font-weight:600;white-space:nowrap;z-index:1}
+td.num,th.num{text-align:right}
+tr.sel td{background:var(--accent-soft)}
+tr.click{cursor:pointer} tr.click:hover td{background:var(--accent-soft)}
+.pill{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11.5px;font-weight:500;white-space:nowrap;border:1px solid var(--line);background:var(--panel2)}
+.pill.in{background:var(--good-bg);color:var(--good);border-color:transparent}
+.pill.near{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.pill.out{background:var(--crit-bg);color:var(--crit);border-color:transparent}
+.pill.l1{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.pill.l2{background:transparent;border:1px dashed var(--ink2);color:var(--ink)}
+.pill.l3{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.pill.l4{background:var(--crit-bg);color:var(--crit);border-color:transparent}
+.bar{height:8px;background:var(--panel2);border-radius:4px;overflow:hidden;min-width:70px;border:1px solid var(--line)}
+.bar i{display:block;height:100%;background:var(--accent)}
+.kv{display:grid;grid-template-columns:170px minmax(0,1fr);gap:4px 12px;font-size:13px}
+.kv dt{color:var(--ink2)} .kv dd{margin:0}
+ul.tight{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.note{border-left:3px solid var(--warn);background:var(--warn-bg);padding:7px 10px;border-radius:0 6px 6px 0;font-size:12.5px}
+.note.crit{border-color:var(--crit);background:var(--crit-bg)}
+.note.ok{border-color:var(--good);background:var(--good-bg)}
+.note.info{border-color:var(--accent);background:var(--accent-soft)}
+.rng{position:relative;height:14px;background:var(--panel2);border:1px solid var(--line);border-radius:4px}
+.rng i{position:absolute;top:1px;bottom:1px;border-radius:3px;background:var(--accent);min-width:3px}
+.rng i.w{background:transparent;border:1.5px dashed var(--g1);top:-3px;bottom:-3px}
+.big{font:600 22px/1.1 var(--display)}
+.tiles{display:flex;gap:10px;flex-wrap:wrap}
+.tile{border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--panel2);min-width:128px}
+svg.ch{width:100%;height:auto;display:block}
+svg.ch text{font:11px var(--body);fill:var(--ink2)}
+svg.ch .ax{stroke:var(--line)} svg.ch .gr{stroke:var(--line);stroke-dasharray:2 3}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--ink2)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+.legend i.h{background:transparent!important;border:2px solid var(--ink);border-radius:0;transform:rotate(45deg);width:8px;height:8px}
+.chk{display:flex;gap:6px;align-items:flex-start}
+.cols{columns:2 220px;column-gap:18px}
+.cols label{display:flex;gap:6px;align-items:baseline;break-inside:avoid;padding:2px 0;font-size:12.5px}
+#aiOut{flex:1;min-height:120px;overflow:auto;display:flex;flex-direction:column;gap:8px;font-size:13px}
+.src{border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:12px;background:var(--panel2)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{font-size:12px;padding:3px 8px;border-radius:999px;text-align:left}
+#modal{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
+#modal.on{display:flex}
+#modal .box{background:var(--panel);border-radius:10px;max-width:860px;width:100%;max-height:88vh;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:10px}
+textarea{width:100%;min-height:220px;font:12px/1.4 var(--mono);background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px}
+.flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sp{flex:1}
+@media (max-width:1180px){ #app{grid-template-columns:190px minmax(0,1fr)} #ai{grid-column:1 / -1;border-left:0;border-top:1px solid var(--line);max-height:340px} }
+@media (max-width:760px){ body{height:auto} #app{display:flex;flex-direction:column} #pal{border-right:0;border-bottom:1px solid var(--line)} .grid2,.grid2e,.grid3{grid-template-columns:minmax(0,1fr)} .kv{grid-template-columns:minmax(0,1fr)} #work{overflow:visible} }
+@media (prefers-reduced-motion: reduce){ *{transition:none!important;animation:none!important} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Flame<span>Bench</span></div>
+  <div class="tag">Fire-safety workbench for space habitats. NASA PSI data and external evidence, each with its evidence level stated.</div>
+  <button id="btnNb" data-act="nb">Notebook (0)</button>
+  <button data-act="example">Example project</button>
+  <button data-act="clear">Empty project</button>
+  <button data-act="save-ws" id="btnWs" title="Save the workspace in this browser">Save workspace</button>
+  <button data-act="toggleAi" id="btnAi">Hide assistant</button>
+  <button data-act="about">Sources and method</button>
+</header>
+<div id="app">
+  <aside id="pal" aria-label="Component box"></aside>
+  <main>
+    <div id="canvasWrap" aria-label="Project schematic"><svg id="wires"></svg><div id="canvas"></div></div>
+    <div id="ribbon" aria-label="Toolbox"></div>
+    <div id="work"></div>
+  </main>
+  <aside id="ai" aria-label="Assistant"></aside>
+</div>
+<div id="modal" role="dialog" aria-modal="true"><div class="box" id="modalBox"></div></div>
+<script>
+const D = __DATA__;
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nf = (v, d = 1) => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString('en-US', {maximumFractionDigits: d});
+const ni = n => Number(n).toLocaleString('en-US');
+const rngTxt = (r, u, d = 1) => !r ? '—' : (r[0] === r[1] ? nf(r[0], d) : nf(r[0], d) + ' to ' + nf(r[1], d)) + (u ? ' ' + u : '');
+const mean = a => a.reduce((s, v) => s + v, 0) / (a.length || 1);
+const uniq = a => [...new Set(a)];
+const plural = (n, s, p) => n === 1 ? s : (p || s + 's');
+const PIL = {prev:'Prevention', det:'Detection', sup:'Suppression', fund:'Fundamental'};
+const STL = {solid:'Solid', liquid:'Liquid', gas:'Gas', 'gas-emulator':'Gas (emulates solids)', smoke:'Smoke source', other:'Other', '—':'No table'};
+const LVL = {1:['l1','Level 1 · Official PSI'], 2:['l2','Level 2 · Other measured test'], 3:['l3','Level 3 · Calculated'], 4:['l4','Level 4 · Hypothesis']};
+const lv = n => `<span class="pill ${LVL[n][0]}">${LVL[n][1]}</span>`;
+const T = D.tests.map(a => { const o = {}; D.TF.forEach((k, i) => o[k] = a[i]); return o; });
+const INV = D.inv; INV.forEach((v, i) => { v.i = i; v.tests = T.filter(t => t.inv === i); });
+const byId = id => INV.find(v => v.id === id);
+const ENV = D.env, EXT = D.ext, XT = D.extTests;
+
+/* ---------- record selection and per-variable quality (commit 8) ----------
+   One definition of "individual test" for every module, and quality judged per
+   variable so a single suspect column never discards a whole observation. */
+const LEVEL_LABEL = {
+  'test':'Individual test', 'test-day summary':'Test-day summary', 'campaign summary':'Campaign summary',
+  'dataset':'Dataset (metadata)', 'session':'Session (metadata)', 'note':'Source footnote', 'visualization':'Pre-test flow visualisation'
+};
+const isIndividual = t => t.lvl === 'test';
+const isAggregate = t => t.lvl === 'test-day summary' || t.lvl === 'campaign summary';
+// Per-variable validity. Each analysis declares the variables it needs.
+const QV = {
+  o2:      t => !!t.qo2 && t.o2b != null,
+  pressure:t => !!t.qp && t.p != null,
+  flow:    t => !!t.qfl && t.flb != null,
+  outcome: t => !!t.qout && !!t.outr
+};
+/* Select individual tests that are valid for the named variables.
+   vars: array of QV keys. warn=true keeps rows carrying a quality warning,
+   which are then marked in the view rather than hidden. Returns
+   {rows, excluded:{variable:count}, total}. */
+function pick(rows, vars, warn){
+  const excluded = {}; const out = [];
+  rows.forEach(t => {
+    if(!isIndividual(t)){ excluded.notAnIndividualTest = (excluded.notAnIndividualTest || 0) + 1; return; }
+    let bad = null;
+    for(const v of (vars || [])) if(!QV[v](t)){ bad = v; break; }
+    if(bad && !(warn && t[{o2:'o2b', pressure:'p', flow:'flb', outcome:'outr'}[bad]] != null)){
+      excluded[bad] = (excluded[bad] || 0) + 1; return;
+    }
+    out.push(t);
+  });
+  return {rows: out, excluded, total: rows.length};
+}
+const EXCL_LABEL = {notAnIndividualTest:'not an individual test', o2:'no valid oxygen', pressure:'no pressure data', flow:'no valid flow', outcome:'no recorded outcome'};
+const exclNote = e => { const k = Object.keys(e).filter(k => e[k]); return k.length ? k.map(k => `${e[k]} ${EXCL_LABEL[k] || k}`).join(', ') : ''; };
+const PSTATE = {measured:['', 'Measured'], assumed:['≈', 'Assumed (cabin pressure)'], no_data:['', 'No data']};
+const pMark = t => (t.pstate === 'assumed' ? '≈' : '');
+
+/* Relevance index. The team rated six environments; Earth and EVA preparation
+   were not rated separately, so their relevance is derived from the closest
+   rated environment and that derivation is shown to the user rather than
+   presented as a rating of its own (commit 11). */
+const RELIX = {iss:0, vehicle:1, lunar:2, rover:3, mars:4, suit:5};
+const RELIX_DERIVED = {
+  earth:   {from:'iss',     why:'Earth is not rated separately; the ISS rating is reused because both use a sea-level cabin atmosphere. Gravity differs and is handled by the gravity filter.'},
+  eva_prep:{from:'vehicle', why:'EVA preparation is not rated separately; the nominal-cabin rating is reused. The atmosphere differs (26.5 % O₂ at 70.3 kPa) and is handled by the oxygen and pressure filters.'}
+};
+const relIndex = env => RELIX[env] != null ? RELIX[env] : (RELIX_DERIVED[env] ? RELIX[RELIX_DERIVED[env].from] : 0);
+const psi2url = id => 'https://psi.nasa.gov/physci/repo/data/investigations/' + id;
+const kpa2psi = p => p / 6.89476;
+const pO2 = (pct, ptot) => pct / 100 * ptot;   // partial pressure of oxygen, kPa
+
+/* ---------- state ---------- */
+const COMP = {
+  C1:{name:'Investigations', desc:'Filter by operating conditions, review the detail and compare investigations.', steps:['Filter by conditions','Detail','Compare']},
+  C2:{name:'Extraction for modelling', desc:'Choose variables, fit a simple model, predict a point and export the data.', steps:['Data source','Variables','Model','Export']},
+  C3:{name:'Prevention, detection and suppression', desc:'PSI and external evidence, analysis per pillar and actionable drafts.', steps:['Evidence','Pillar analysis','Actionable drafts']}
+};
+let S = {blocks:[], active:null, nb:[], n:0};
+let SAMPLE = null;
+function defaults(type){
+  if(type==='C1') return {env:'lunar', useO2:true, o2:34, tolO2:5, useP:true, p:56.5, tolP:30, useFl:false, fl:10, tolFl:10, grav:'partial', fuel:'all', pil:'all', psiOnly:false, yax:'p', sel:null, cmp:[], force:false, onlyMatch:true, warn:false, rank:'evidence', autoAx:true, axP:null, axFl:null};
+  if(type==='C2') return {invs:['PSI-69'], ds:'norm', exQA:true, onlyTests:true, exCensored:true, cols:null, x:'o2b', y:'K', gcol:'fuel', gval:'Methanol', method:'lin', xq:30, hist:[], last:null, preset:'', cv:false};
+  return {env:'lunar', o2:34, p:56.5, pil:'prev', U:5, r:0.318, gexp:0.333, fuelSup:'Heptane', adv:false, supFuelFilter:'all', supPFilter:'all'};
+}
+function addBlock(type, link){
+  const id = String.fromCharCode(65 + (S.n++ % 26));
+  const b = {id, type, step:0, link:link||null, st:defaults(type)};
+  if(type !== 'C1' && !link){ const c1 = S.blocks.find(x => x.type === 'C1'); if(c1 && S.linkNew) b.link = c1.id; }
+  S.blocks.push(b); S.active = id; syncLink(b); renderAll();
+}
+const blk = id => S.blocks.find(b => b.id === id);
+const cur = () => blk(S.active);
+function syncLink(b){
+  if(!b || !b.link) return; const a = blk(b.link); if(!a){ b.link = null; return; }
+  if(b.type === 'C2'){ const ids = srcInvs(b); if(ids.length){ b.st.invs = ids.slice(0, 6); b.st.cols = null; pickXY(b); } b.st.xq = a.st.o2; }
+}
+/* ---------- environment and matching (C1) ---------- */
+function envOf(b){
+  if(b.type === 'C1'){ const e = ENV.find(x => x.id === b.st.env) || ENV[0]; const g = b.st.grav === 'ug' ? 0 : b.st.grav === '1g' ? 1 : (e.g > 0 && e.g < 1 ? e.g : 0.165); return {id:e.id, name:e.name, o2:b.st.o2, p:b.st.p, g, src:e.src}; }
+  if(b.link && blk(b.link)) return envOf(blk(b.link));
+  const e = ENV.find(x => x.id === b.st.env) || ENV[0]; return {id:e.id, name:e.name, o2:b.st.o2, p:b.st.p, g:e.g, src:e.src};
+}
+/* Environments whose configured parameters are identical for the variables the
+   calculations use, so a user is told rather than left to assume a difference. */
+function twinEnvs(id){
+  const e = ENV.find(x => x.id === id); if(!e) return [];
+  return ENV.filter(x => x.id !== id && x.o2 === e.o2 && x.p === e.p && x.g === e.g).map(x => x.name);
+}
+/* Active scenario, shown wherever a calculation depends on it. */
+function scenarioLine(b){
+  const e = envOf(b), tw = twinEnvs(e.id), d = RELIX_DERIVED[e.id];
+  return `<b>${esc(e.name)}</b> · ${nf(e.o2)} % O₂ · ${nf(e.p)} kPa (${nf(kpa2psi(e.p), 1)} psi) · O₂ partial pressure ${nf(pO2(e.o2, e.p), 1)} kPa ${lv(3)} · ${nf(e.g, 3)} g`
+    + (tw.length ? `<div class="small muted">Identical configured parameters to: ${esc(tw.join(', '))}. Any difference between these environments is not represented in the oxygen, pressure or gravity used here.</div>` : '')
+    + (d ? `<div class="small muted">Relevance ranking for this environment is derived, not rated: ${esc(d.why)}</div>` : '');
+}
+function win(st, k = 1){ return {o2: st.useO2 ? [st.o2 - st.tolO2 * k, st.o2 + st.tolO2 * k] : null, p: st.useP ? [st.p * (1 - st.tolP * k / 100), st.p * (1 + st.tolP * k / 100)] : null, fl: st.useFl ? [Math.max(0, st.fl - st.tolFl * k), st.fl + st.tolFl * k] : null}; }
+/* A row is judged per variable, and a variable that is absent is reported as
+   missing rather than as out of range: a test with no pressure recorded is not
+   evidence that its pressure was wrong (commit 7). */
+function rowVerdict(t, w){
+  const missing = [], outside = [];
+  if(w.o2){ if(!QV.o2(t)) missing.push('o2'); else if(t.o2b < w.o2[0] || t.o2a > w.o2[1]) outside.push('o2'); }
+  if(w.p){ if(!QV.pressure(t)) missing.push('pressure'); else if(t.p < w.p[0] || t.p > w.p[1]) outside.push('pressure'); }
+  if(w.fl){ if(!QV.flow(t)) missing.push('flow'); else { const a = t.fla ?? t.flb; if(t.flb < w.fl[0] || a > w.fl[1]) outside.push('flow'); } }
+  return {ok: !missing.length && !outside.length, missing, outside};
+}
+const rowMatch = (t, w) => rowVerdict(t, w).ok;
+/* Four compatibility states (commit 13) replace the in/out binary, so a gap in
+   the data is never reported as a mismatch of conditions. */
+const CSTATE = {
+  match:   ['in',   'Experimental match',    'Critical variables are comparable and the measurements exist.'],
+  partial: ['near', 'Partial match',         'Some critical variables match; others differ or are not recorded.'],
+  related: ['out',  'Related evidence',      'Relevant to the problem, but its experimental conditions differ from this scenario.'],
+  none:    ['',     'Insufficient evidence', 'No individual tests with the variables this comparison needs.']
+};
+function evalInv(v, st){
+  const src = v.parent ? byId(v.parent) : v;
+  // Only individual tests may be counted as comparable evidence (commit 8).
+  const rows = src.tests.filter(isIndividual);
+  const w = win(st), any = w.o2 || w.p || w.fl;
+  const verdicts = rows.map(t => ({t, d: rowVerdict(t, w)}));
+  const m = any ? verdicts.filter(x => x.d.ok).map(x => x.t) : rows;
+  const wide = win(st, 2);
+  let status = 'match';
+  if(!rows.length) status = 'none';
+  else if(any){
+    if(m.length) status = 'match';
+    else if(rows.some(t => rowMatch(t, wide))) status = 'partial';
+    else if(verdicts.some(x => x.d.missing.length && !x.d.outside.length)) status = 'partial';
+    else status = 'related';
+  }
+  // Why the status came out as it did, for the explanation shown in the table.
+  const missCount = {}; verdicts.forEach(x => x.d.missing.forEach(k => missCount[k] = (missCount[k] || 0) + 1));
+  const outCount = {}; verdicts.forEach(x => x.d.outside.forEach(k => outCount[k] = (outCount[k] || 0) + 1));
+
+  const rel = v.rel[relIndex(st.env)] / 3;
+  const cov = status === 'match' ? 1 : status === 'partial' ? 0.5 : 0;
+  const G = st.grav === 'ug' ? 1 : st.grav === '1g' ? (v.g1 ? 1 : 0) : (v.proxy ? 1 : v.g1 ? 0.8 : 0.5);
+  const pri = v.pri === 'A' ? 1 : v.pri === 'B' ? 0.6 : 0.3;
+  const E = Math.min(1, Math.log10(1 + v.nind + 3 * v.npub) / 3);
+  // Two questions are kept apart (commit 11): how compatible the evidence is
+  // with this scenario, and how relevant the investigation is to the mission.
+  const parts = {Relevance: 35 * rel, Coverage: 30 * cov, Gravity: 15 * G, Pillar: 10 * pri, Evidence: 10 * E};
+  const evidenceScore = 100 * (0.55 * cov + 0.25 * G + 0.20 * E);
+  const missionScore = 100 * (0.70 * rel + 0.30 * pri);
+  return {v, m, status, score: Object.values(parts).reduce((a, b) => a + b, 0), parts,
+          evidenceScore, missionScore, n: rows.length, nAll: src.tests.length, missCount, outCount};
+}
+const RANK_KEY = {evidence:'evidenceScore', relevance:'missionScore', overall:'score'};
+function c1List(b){
+  const st = b.st, key = RANK_KEY[st.rank] || 'evidenceScore';
+  return INV.filter(v => (st.fuel === 'all' || v.st.includes(st.fuel) || (st.fuel === 'solid' && v.st.includes('gas-emulator')) || (v.parent && byId(v.parent).st.includes(st.fuel)))
+      && (st.pil === 'all' || v.pil.includes(st.pil)) && (st.grav !== '1g' || v.g1))
+    .map(v => evalInv(v, st)).sort((a, b) => b[key] - a[key] || b.score - a.score);
+}
+function srcInvs(b){
+  const a = b.link && blk(b.link); if(!a) return b.st.invs;
+  // A comparison the user forced through below the affinity threshold does not
+  // become a modelling dataset: fall back to the investigations that match.
+  if(a.st.cmp.length && cmpPoolable(a.st)) return a.st.cmp.filter(id => byId(id).nind);
+  return c1List(a).filter(r => r.status === 'match' && r.v.nind && !r.v.parent).map(r => r.v.id).slice(0, 6);
+}
+
+/* ---------- charts ---------- */
+function chart(o){
+  const W = o.w || 520, H = o.h || 300, L = 46, R = 12, Tp = 10, B = 36, xr = o.xr, yr = o.yr;
+  const X = x => L + (x - xr[0]) / (xr[1] - xr[0]) * (W - L - R), Y = y => H - B - (y - yr[0]) / (yr[1] - yr[0]) * (H - Tp - B);
+  const ticks = (r, n) => { const st = (r[1] - r[0]) / n, p = Math.pow(10, Math.floor(Math.log10(st))), s = [1, 2, 2.5, 5, 10].map(m => m * p).find(m => m >= st) || st; const a = []; for(let v = Math.ceil(r[0] / s) * s; v <= r[1] + 1e-9; v += s) a.push(+v.toFixed(6)); return a; };
+  let s = `<svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.title || '')}">`;
+  (o.rects || []).forEach(r => { const x0 = Math.max(xr[0], r.x0), x1 = Math.min(xr[1], r.x1), y0 = Math.max(yr[0], r.y0), y1 = Math.min(yr[1], r.y1); if(x1 > x0 && y1 > y0) s += `<rect x="${X(x0)}" y="${Y(y1)}" width="${X(x1) - X(x0)}" height="${Y(y0) - Y(y1)}" fill="${r.fill || 'var(--g1)'}" fill-opacity=".13" stroke="var(--g1)" stroke-dasharray="4 3"/>` + (r.label ? `<text x="${X(x0) + 4}" y="${Y(y1) + 12}" style="fill:var(--g1)">${esc(r.label)}</text>` : ''); });
+  ticks(xr, 6).forEach(v => { s += `<line class="gr" x1="${X(v)}" x2="${X(v)}" y1="${Tp}" y2="${H - B}"/><text x="${X(v)}" y="${H - B + 14}" text-anchor="middle">${nf(v, 2)}</text>`; });
+  ticks(yr, 5).forEach(v => { s += `<line class="gr" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${nf(v, 2)}</text>`; });
+  s += `<line class="ax" x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}"/><line class="ax" x1="${L}" x2="${L}" y1="${Tp}" y2="${H - B}"/>`;
+  s += `<text x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle">${esc(o.xl)}</text><text transform="translate(12 ${(Tp + H - B) / 2}) rotate(-90)" text-anchor="middle">${esc(o.yl)}</text>`;
+  (o.hlines || []).forEach(h => { if(h.y >= yr[0] && h.y <= yr[1]) s += `<line x1="${L}" x2="${W - R}" y1="${Y(h.y)}" y2="${Y(h.y)}" stroke="${h.c || 'var(--ink2)'}" stroke-dasharray="5 4"/><text x="${W - R - 4}" y="${Y(h.y) - 4}" text-anchor="end">${esc(h.label || '')}</text>`; });
+  (o.vlines || []).forEach(h => { if(h.x >= xr[0] && h.x <= xr[1]) s += `<line x1="${X(h.x)}" x2="${X(h.x)}" y1="${Tp}" y2="${H - B}" stroke="${h.c || 'var(--ink2)'}" stroke-dasharray="5 4"/><text x="${X(h.x) + 4}" y="${Tp + 11}">${esc(h.label || '')}</text>`; });
+  (o.lines || []).forEach(l => { let d = '', pen = false; for(let i = 0; i <= 120; i++){ const x = xr[0] + (xr[1] - xr[0]) * i / 120, y = l.f(x); if(y == null || isNaN(y) || y < yr[0] - 1e-9 || y > yr[1] + 1e-9){ pen = false; continue; } d += (pen ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(y).toFixed(1); pen = true; } s += `<path d="${d}" fill="none" stroke="${l.c || 'var(--ink)'}" stroke-width="2" ${l.dash ? 'stroke-dasharray="6 4"' : ''}/>`; });
+  // Points outside the visible window are counted so the view can say so
+  // instead of dropping them silently (commit 10).
+  let dropped = 0;
+  (o.pts || []).forEach(p => {
+    if(p.x == null || p.y == null) return;
+    if(p.x < xr[0] || p.x > xr[1] || p.y < yr[0] || p.y > yr[1]){ dropped++; return; }
+    const x = X(p.x), y = Y(p.y), r = p.r || 3.5, tt = p.t ? `<title>${esc(p.t)}</title>` : '';
+    s += shapeAt(p.shape || (p.hollow ? 'hollowDiamond' : 'circle'), x, y, r, p, tt);
+  });
+  o.dropped = dropped;
+  (o.marks || []).forEach(m => { if(m.x < xr[0] || m.x > xr[1] || m.y < yr[0] || m.y > yr[1]) return; s += `<path d="M${X(m.x) - 7} ${Y(m.y)}H${X(m.x) + 7}M${X(m.x)} ${Y(m.y) - 7}V${Y(m.y) + 7}" stroke="var(--crit)" stroke-width="2.5"/><text x="${X(m.x) + 9}" y="${Y(m.y) - 7}" style="fill:var(--ink);font-weight:600">${esc(m.label || '')}</text>`; });
+  return s + '</svg>';
+}
+/* Marks are distinguished by shape as well as colour, so the chart stays
+   readable without relying on colour alone (commit 16). */
+function shapeAt(shape, x, y, r, p, tt){
+  const fill = p.c || 'var(--s1)', op = p.o != null ? p.o : .75, st = 'stroke="var(--panel)" stroke-width=".8"';
+  if(shape === 'square')   return `<rect x="${x - r}" y="${y - r}" width="${2 * r}" height="${2 * r}" fill="${fill}" fill-opacity="${op}" ${st}>${tt}</rect>`;
+  if(shape === 'triangle') return `<path d="M${x} ${y - r - 1}L${x + r + 1} ${y + r}L${x - r - 1} ${y + r}Z" fill="${fill}" fill-opacity="${op}" ${st}>${tt}</path>`;
+  if(shape === 'diamond')  return `<path d="M${x} ${y - r - 1}L${x + r + 1} ${y}L${x} ${y + r + 1}L${x - r - 1} ${y}Z" fill="${fill}" fill-opacity="${op}" ${st}>${tt}</path>`;
+  if(shape === 'hollowDiamond') return `<path d="M${x} ${y - r - 2}L${x + r + 2} ${y}L${x} ${y + r + 2}L${x - r - 2} ${y}Z" fill="var(--panel)" stroke="var(--ink)" stroke-width="1.8">${tt}</path>`;
+  return `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" fill-opacity="${op}" ${st}>${tt}</circle>`;
+}
+const LEGSHAPE = {circle:'border-radius:50%', square:'border-radius:1px', triangle:'clip-path:polygon(50% 0,100% 100%,0 100%)', diamond:'transform:rotate(45deg)'};
+const legend = items => `<div class="legend">${items.map(i => {
+  if(i.h) return `<span><i class="h"></i>${esc(i.t)}</span>`;
+  const sh = LEGSHAPE[i.shape || 'circle'] || LEGSHAPE.circle;
+  return `<span><i style="${i.c ? 'background:' + i.c + ';' : 'border:1.5px solid var(--ink2);'}${sh}"></i>${esc(i.t)}</span>`;
+}).join('')}</div>`;
+/* Outcome styling is driven by the raw outcome code, not by display text, and an
+   unrecorded outcome gets its own neutral grey diamond rather than a colour that
+   reads as a result (commit 9, 16). */
+function outcomeStyle(t){
+  if(!t.outr) return {c:'var(--mute)', shape:'diamond', t:'Outcome not recorded in the source table'};
+  if(t.ext === 1) return {c:'var(--s1)', shape:'square', t:'Extinguished'};
+  if(t.ign === 0) return {c:'var(--mute)', shape:'triangle', t:'No ignition'};
+  return {c:'var(--s2)', shape:'circle', t:'Burned or ignited'};
+}
+const OUTC = t => outcomeStyle(t).c;
+const OUTLEG = [{c:'var(--s2)', shape:'circle', t:'Burned or ignited'}, {c:'var(--s1)', shape:'square', t:'Extinguished'},
+                {c:'var(--mute)', shape:'triangle', t:'No ignition'}, {c:'var(--mute)', shape:'diamond', t:'Outcome not recorded'}];
+/* A chart-level note for points that fall outside the visible axes. */
+const dropNote = (o, onReset) => o.dropped ? `<div class="note"><b>${o.dropped} ${plural(o.dropped, 'point')}</b> fall outside the visible axis range and ${o.dropped === 1 ? 'is' : 'are'} not drawn. ${onReset ? `<button data-act="axreset">Fit axes to the data</button>` : 'Widen the range to include them.'}</div>` : '';
+
+/* ---------- top-level render ---------- */
+function renderAll(){ renderPal(); renderCanvas(); renderRibbon(); renderWork(); $('#btnNb').textContent = `Notebook (${S.nb.length})`; }
+function renderPal(){
+  const nInd = T.filter(isIndividual).length;
+  $('#pal').innerHTML = `<h4>Components</h4><p class="small muted">Drag a component onto the schematic or press Add. Drop it on an Investigations block to link them.</p>` +
+    Object.entries(COMP).map(([k, c]) => `<div class="comp" draggable="true" data-comp="${k}"><div class="row"><b>${c.name}</b><button data-act="add" data-type="${k}" aria-label="Add ${c.name}">Add</button></div><span class="small muted">${c.desc}</span><span class="small muted num">${c.steps.length} steps</span></div>`).join('') +
+    `<h4 style="margin-top:6px">Evidence levels</h4><div class="small" style="display:flex;flex-direction:column;gap:5px">${[1,2,3,4].map(lv).join('')}</div>
+     <p class="small muted">${ni(nInd)} individual tests from ${INV.filter(v => v.nind).length} investigations, out of ${ni(T.length)} normalised source rows; ${INV.length} investigation records; ${XT.length} measured points from outside PSI.</p>
+     <p class="small muted">An exploration and research tool. It does not certify materials and does not predict in general what will burn on the Moon or Mars.</p>`;
+}
+function stepStatus(b, i){
+  const st = b.st;
+  if(b.type === 'C1') return i === 0 ? ['ok', c1List(b).filter(r => r.status === 'match').length + ' matching'] : i === 1 ? (st.sel ? ['ok', byId(st.sel).acr.slice(0, 12)] : ['q', 'choose one']) : (st.cmp.length >= 2 ? ['ok', st.cmp.length + ' selected'] : ['q', 'choose 2 to 4']);
+  if(b.type === 'C2') return i === 0 ? ['ok', srcInvs(b).length + ' inv.'] : i === 1 ? ['ok', c2Rows(b).length + ' rows'] : i === 2 ? (st.last ? ['ok', 'fitted'] : ['q', 'not fitted']) : ['ok', 'CSV · JSON'];
+  return i === 0 ? ['ok', PIL[st.pil]] : i === 1 ? ['ok', 'data'] : ['ok', 'draft'];
+}
+function renderCanvas(){
+  const c = $('#canvas');
+  c.innerHTML = S.blocks.length ? S.blocks.map(b => { const C = COMP[b.type];
+    const linkSel = b.type === 'C1' ? `<span>Source: PSI + external evidence</span>` : `<label for="lk${b.id}">Input:</label><select id="lk${b.id}" data-act="link" data-id="${b.id}"><option value="">Independent</option>${S.blocks.filter(x => x.type === 'C1').map(x => `<option value="${x.id}" ${b.link === x.id ? 'selected' : ''}>Block ${x.id}</option>`).join('')}</select>`;
+    return `<div class="blk ${b.id === S.active ? 'active' : ''}" data-blk="${b.id}"><div class="blk-h"><span class="lt">${b.id}</span>${C.name}<button data-act="del" data-id="${b.id}" aria-label="Remove block ${b.id}">×</button></div><ol>${C.steps.map((s, i) => { const [k, t] = stepStatus(b, i); return `<li class="cell ${b.id === S.active && b.step === i ? 'on' : ''}" data-act="step" data-id="${b.id}" data-step="${i}" tabindex="0"><span class="n">${i + 1}</span>${s}<span class="stt ${k}">${k === 'ok' ? '✓' : '?'} ${esc(t)}</span></li>`; }).join('')}</ol><div class="blk-f">${linkSel}</div></div>`; }).join('')
+    : `<p class="hint">The schematic is empty. Drag a component here from the left, or press Example project.</p>`;
+  requestAnimationFrame(drawWires);
+}
+function drawWires(){
+  const sv = $('#wires'), wr = $('#canvasWrap').getBoundingClientRect(); let s = '';
+  S.blocks.filter(b => b.link).forEach(b => { const a = document.querySelector(`[data-blk="${b.link}"]`), z = document.querySelector(`[data-blk="${b.id}"]`); if(!a || !z) return; const ra = a.getBoundingClientRect(), rz = z.getBoundingClientRect();
+    const x1 = ra.left + ra.width / 2 - wr.left, y1 = ra.bottom - wr.top, x2 = rz.left + rz.width / 2 - wr.left, y2 = rz.bottom - wr.top, yb = Math.max(y1, y2) + 12;
+    s += `<path d="M${x1} ${y1}V${yb}H${x2}V${y2}" fill="none" stroke="var(--accent)" stroke-width="2"/><circle cx="${x1}" cy="${y1}" r="4" fill="var(--accent)"/><path d="M${x2 - 5} ${y2 + 7}L${x2} ${y2}L${x2 + 5} ${y2 + 7}" fill="none" stroke="var(--accent)" stroke-width="2"/>`; });
+  sv.innerHTML = s;
+}
+/* ---------- ribbon (toolbox) ---------- */
+const seg = (key, opts, val) => `<span class="seg">${opts.map(([v, t]) => `<button data-act="set" data-key="${key}" data-val="${v}" class="${String(val) === String(v) ? 'on' : ''}">${t}</button>`).join('')}</span>`;
+const slider = (key, min, max, step, val, unit, extra = '') => `<input type="range" id="sl_${key}" data-bind="${key}" min="${min}" max="${max}" step="${step}" value="${val}"><span class="num" data-out="${key}">${nf(val, 2)}</span> ${unit}${extra}`;
+function renderRibbon(){
+  const b = cur(), r = $('#ribbon'); if(!b){ r.innerHTML = `<span class="muted">Toolbox: select or add a block to see its controls.</span>`; return; }
+  const st = b.st; let h = `<div class="ttl">Toolbox · Block ${b.id} · ${COMP[b.type].name}</div>`;
+  const envSel = `<label for="envsel">Environment</label><select id="envsel" data-act="preset">${ENV.map(e => `<option value="${e.id}" ${st.env === e.id ? 'selected' : ''}>${e.name}</option>`).join('')}</select>`;
+  if(b.type === 'C1'){
+    h += `<div class="grp">${envSel}</div>
+      <div class="grp"><label><input type="checkbox" data-bind="useO2" ${st.useO2 ? 'checked' : ''}>O₂</label>${slider('o2', 10, 100, 0.5, st.o2, '%')} ± <select data-bind="tolO2" aria-label="Oxygen tolerance">${[2, 5, 10].map(v => `<option ${st.tolO2 == v ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+      <div class="grp"><label><input type="checkbox" data-bind="useP" ${st.useP ? 'checked' : ''}>Pressure</label>${slider('p', 20, 520, 0.5, st.p, 'kPa')} <span class="muted num" data-out="psi">(${nf(kpa2psi(st.p), 1)} psi)</span> ± <select data-bind="tolP" aria-label="Pressure tolerance">${[10, 20, 30, 50].map(v => `<option ${st.tolP == v ? 'selected' : ''}>${v}</option>`).join('')}</select> %</div>
+      <div class="grp"><label><input type="checkbox" data-bind="useFl" ${st.useFl ? 'checked' : ''}>Air flow</label>${slider('fl', 0, 90, 1, st.fl, 'cm/s')} ± <select data-bind="tolFl" aria-label="Flow tolerance">${[5, 10, 20].map(v => `<option ${st.tolFl == v ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+      <div class="grp">Gravity ${seg('grav', [['ug', 'Microgravity'], ['partial', 'Partial'], ['1g', '1 g']], st.grav)}</div>
+      <div class="grp">Fuel ${seg('fuel', [['all', 'All'], ['solid', 'Solid'], ['liquid', 'Liquid'], ['gas', 'Gas'], ['smoke', 'Smoke']], st.fuel)}</div>
+      <div class="grp">Pillar ${seg('pil', [['all', 'All'], ['prev', 'Prevention'], ['det', 'Detection'], ['sup', 'Suppression']], st.pil)}</div>
+      <div class="grp">Rank by ${seg('rank', [['evidence', 'Compatible evidence'], ['relevance', 'Mission relevance'], ['overall', 'Combined score']], st.rank)}</div>
+      <div class="grp"><label title="External measured tests are hidden from the coverage chart and the data-gap note"><input type="checkbox" data-bind="psiOnly" ${st.psiOnly ? 'checked' : ''}>PSI tables only (hides level-2 points)</label>
+        <label title="Keep rows that carry a quality warning, marked in the view"><input type="checkbox" data-bind="warn" ${st.warn ? 'checked' : ''}>Include data with warnings</label></div>
+      <div class="grp"><label>Axis maximum</label><label class="small">kPa <input type="number" data-bind="axP" value="${st.axP == null ? '' : st.axP}" placeholder="auto" step="any" style="width:76px"></label><label class="small">cm/s <input type="number" data-bind="axFl" value="${st.axFl == null ? '' : st.axFl}" placeholder="auto" step="any" style="width:70px"></label><button data-act="axreset">Fit to data</button></div>`;
+  } else if(b.type === 'C2'){
+    const raws = D.raw.filter(r => srcInvs(b).includes(INV[r.inv].id));
+    h += `<div class="grp"><label for="dssel">Table</label><select id="dssel" data-act="ds"><option value="norm" ${st.ds === 'norm' ? 'selected' : ''}>Normalised (comparable across investigations)</option>${raws.map(r => `<option value="${D.raw.indexOf(r)}" ${String(st.ds) === String(D.raw.indexOf(r)) ? 'selected' : ''}>Original PSI: ${esc(INV[r.inv].acr)} · ${esc(r.name)}</option>`).join('')}</select></div>
+      <div class="grp"><label><input type="checkbox" data-bind="exQA" ${st.exQA ? 'checked' : ''}>Exclude rows with a quality warning</label><label><input type="checkbox" data-bind="onlyTests" ${st.onlyTests ? 'checked' : ''}>Individual tests only</label><label title="A value written as &lt; or &gt; is a bound, not a measurement"><input type="checkbox" data-bind="exCensored" ${st.exCensored ? 'checked' : ''}>Exclude censored values</label></div>
+      <div class="grp muted">${b.link ? `Input: selection from block ${b.link}` : 'Independent block: choose the investigations in step 1'}</div>`;
+  } else {
+    const e = envOf(b);
+    h += b.link ? `<div class="grp muted">Environment taken from block ${b.link}: ${esc(e.name)}, ${nf(e.o2)} % O₂, ${nf(e.p)} kPa, ${nf(e.g, 3)} g</div>` : `<div class="grp">${envSel}</div><div class="grp">O₂ ${slider('o2', 10, 100, 0.5, st.o2, '%')}</div><div class="grp">Pressure ${slider('p', 20, 520, 0.5, st.p, 'kPa')}</div>`;
+    h += `<div class="grp">Pillar ${seg('pil', [['prev', 'Prevention'], ['det', 'Detection'], ['sup', 'Suppression']], st.pil)}</div>`;
+    if(st.pil === 'prev'){
+      h += `<div class="grp">Ventilation ${slider('U', 0, 40, 1, st.U, 'cm/s')}</div>
+        <div class="grp"><label><input type="checkbox" data-bind="adv" ${st.adv ? 'checked' : ''}>Advanced assumptions</label></div>`;
+      // The rod radius and the gravity exponent are modelling assumptions, not
+      // measured settings, so they sit behind an explicit toggle (commit 13).
+      if(st.adv) h += `<div class="grp">Rod radius ${slider('r', 0.15, 0.7, 0.01, st.r, 'cm')}</div><div class="grp" title="Assumed exponent in U_b = 20 g^n. Not validated by the 1-g check.">Gravity exponent n ${slider('gexp', 0.25, 0.5, 0.01, st.gexp, '')}</div>`;
+    }
+    if(st.pil === 'sup') h += `<div class="grp">Fuel ${seg('fuelSup', [['Heptane', 'Heptane'], ['Methanol', 'Methanol']], st.fuelSup)}</div>`;
+  }
+  r.innerHTML = h;
+}
+/* ---------- work area ---------- */
+function renderWork(){
+  const b = cur(), w = $('#work'); if(!b){ w.innerHTML = `<div class="card"><h2>Getting started</h2><ul class="tight"><li>Drag <b>Investigations</b> onto the schematic to filter the 24 PSI investigations by oxygen, pressure, flow, gravity and environment.</li><li>Drag <b>Extraction for modelling</b> to choose variables, fit a model and export data.</li><li>Drag <b>Prevention, detection and suppression</b> to see each pillar with PSI and external evidence.</li></ul></div>`; return; }
+  const C = COMP[b.type];
+  let h = `<div class="steps" role="tablist">${C.steps.map((s, i) => `<button role="tab" data-act="step" data-id="${b.id}" data-step="${i}" class="${b.step === i ? 'on' : ''}">${i + 1}. ${s}</button>`).join('')}</div>`;
+  h += b.type === 'C1' ? [c1Filter, c1Detail, c1Compare][b.step](b) : b.type === 'C2' ? [c2Source, c2Vars, c2Model, c2Export][b.step](b) : [c3Evidence, c3Analysis, c3Outputs][b.step](b);
+  w.innerHTML = h;
+}
+/* ----- C1 step 1 ----- */
+const stPill = s => `<span class="pill ${CSTATE[s][0]}" title="${esc(CSTATE[s][2])}">${CSTATE[s][1]}</span>`;
+/* Why a given investigation landed in its compatibility state. */
+function stWhy(r){
+  if(r.status === 'match') return `${r.m.length} of ${r.n} individual tests fall inside the window.`;
+  if(r.status === 'none') return 'No individual tests in PSI with the variables this comparison needs.';
+  const miss = Object.keys(r.missCount).map(k => `${r.missCount[k]} missing ${EXCL_LABEL[k].replace('no valid ', '').replace('no ', '')}`);
+  const out = Object.keys(r.outCount).map(k => `${r.outCount[k]} outside the ${k === 'o2' ? 'oxygen' : k} window`);
+  return [...out, ...miss].join('; ') || 'Conditions differ from this scenario.';
+}
+/* Axis maxima taken from the data actually available, so a fixed limit never
+   hides a valid observation (commit 10). */
+function dataMax(){
+  const plotted = T.filter(t => t.plot);
+  const p = plotted.map(t => t.p).filter(v => v != null).concat(XT.map(x => x.p));
+  const fl = plotted.map(t => t.flb).filter(v => v != null).concat(XT.map(x => x.fl));
+  return {p: Math.ceil(Math.max(...p) / 10) * 10, fl: Math.ceil(Math.max(...fl) / 5) * 5};
+}
+const DMAX = dataMax();
+function gravNote(st){
+  if(st.grav === 'partial') return `<div class="note"><b>Partial gravity:</b> PSI has no tests measured in lunar or Martian gravity. This list uses the microgravity tests and the 1-g comparisons as bounds, and promotes E-FIELD Flames, which imitates buoyancy with an electric field. Outside PSI: LUCI burned two samples in simulated lunar gravity in February 2025, and FM² is planned, not flown.</div>`;
+  if(st.grav === '1g') return `<div class="note info">Showing only investigations that include a 1-g comparison (ground tests, or 1-g columns in their table).</div>`;
+  return '';
+}
+function c1Filter(b){
+  const st = b.st, L = c1List(b), w = win(st), e = envOf(b);
+  const matched = L.filter(r => r.status === 'match');
+  const yk = st.yax, yl = yk === 'p' ? 'Pressure (kPa)' : 'Air flow (cm/s)';
+  const axMax = yk === 'p' ? (st.axP || DMAX.p) : (st.axFl || DMAX.fl);
+  const yr = yk === 'p' ? [20, axMax] : [0, axMax];
+  // Only individual tests become points (commit 8).
+  const sel = pick(T, [], st.warn);
+  const pts = []; L.forEach(r => { if(r.v.parent) return; const ms = new Set(r.m);
+    r.v.tests.filter(isIndividual).forEach(t => { const y = yk === 'p' ? t.p : t.flb; if(t.o2b == null || y == null) return;
+      const on = ms.has(t) && (w.o2 || w.p || w.fl);
+      pts.push({x:t.o2b, y, c: on ? 'var(--accent)' : 'var(--mute)', o: on ? .9 : .35, r: on ? 4 : 2.5,
+        t:`${r.v.acr} · ${t.tid}: ${nf(t.o2b)} % O₂, ${nf(y)} ${yk === 'p' ? 'kPa' : 'cm/s'}${t.pstate === 'assumed' ? ' (pressure assumed)' : ''}${t.qa ? ' · warning: ' + t.qa : ''}`}); }); });
+  pts.sort((a, b) => a.r - b.r);
+  if(!st.psiOnly) XT.forEach(x => pts.push({x:x.o2, y: yk === 'p' ? x.p : x.fl, hollow:true, t:`${x.name} (outside PSI): ${x.mat}, ${nf(x.o2)} % O₂, ${nf(x.p)} kPa`}));
+  const rect = (w.o2 || (yk === 'p' ? w.p : w.fl)) ? [{x0: w.o2 ? w.o2[0] : 10, x1: w.o2 ? w.o2[1] : 100, y0: (yk === 'p' ? w.p : w.fl) ? (yk === 'p' ? w.p : w.fl)[0] : yr[0], y1: (yk === 'p' ? w.p : w.fl) ? (yk === 'p' ? w.p : w.fl)[1] : yr[1], label:'Filter window'}] : [];
+  const solidsIn = matched.filter(r => r.v.st.includes('solid')).reduce((s, r) => s + r.m.length, 0);
+  const xin = XT.filter(x => (!w.o2 || (x.o2 >= w.o2[0] && x.o2 <= w.o2[1])) && (!w.p || (x.p >= w.p[0] && x.p <= w.p[1])));
+  const maxSolid = Math.max(...T.filter(t => t.plot && t.st === 'solid' && t.o2b != null).map(t => t.o2b));
+  const co = {xr:[10, 100], yr, xl:'Oxygen (% by volume)', yl, pts, rects:rect, title:'Test coverage'};
+  const svg = chart(co);
+  const rankLabel = {evidence:'compatible evidence', relevance:'mission relevance', overall:'combined score'}[st.rank] || 'compatible evidence';
+  const shown = st.rank === 'relevance' ? 'missionScore' : st.rank === 'overall' ? 'score' : 'evidenceScore';
+  return `${gravNote(st)}
+  <div class="card"><div class="flex"><h3>Active scenario</h3><span class="sp"></span><span class="small muted">${esc(e.src)}</span></div><p>${scenarioLine(b)}</p></div>
+  <div class="card"><div class="flex"><h2>Investigations for ${esc(e.name)}</h2><span class="sp"></span><span class="muted small">${matched.length} with an experimental match, of ${L.length} listed · ranked by ${rankLabel}</span></div>
+   <p class="small muted">Tick 2 to 4 to compare; click a row for its detail. Compatibility and relevance are separate questions and are scored separately.</p>
+   <div class="tw"><table><thead><tr><th></th><th>#</th><th>Investigation</th><th>Pillar</th><th>Compatibility</th><th class="num">Matching tests</th><th>${st.rank === 'relevance' ? 'Mission relevance' : st.rank === 'overall' ? 'Combined score' : 'Compatible evidence'}</th></tr></thead><tbody>
+   ${L.map((r, i) => { const v = r[shown]; return `<tr class="click ${st.sel === r.v.id ? 'sel' : ''}" data-act="detail" data-inv="${r.v.id}"><td><input type="checkbox" data-act="cmp" data-inv="${r.v.id}" ${st.cmp.includes(r.v.id) ? 'checked' : ''} aria-label="Compare ${esc(r.v.acr)}"></td><td class="num">${i + 1}</td><td><b>${esc(r.v.acr)}</b><br><span class="muted small">${r.v.id} · ${r.v.type}${r.v.parent ? ' using data from ' + byId(r.v.parent).acr : ' · ' + r.v.st.map(s => STL[s] || s).join(', ')}</span></td><td>${r.v.pil.map(p => PIL[p]).join(', ')}</td><td>${stPill(r.status)}<br><span class="muted small">${esc(stWhy(r))}</span></td><td class="num">${r.m.length} of ${r.n}${r.nAll > r.n ? `<br><span class="muted small">+${r.nAll - r.n} non-test</span>` : ''}</td><td title="${Object.entries(r.parts).map(([k, x]) => k + ' ' + nf(x, 0)).join(' · ')}"><div class="flex" style="gap:6px;flex-wrap:nowrap"><span class="num">${nf(v, 0)}</span><div class="bar" style="flex:1"><i style="width:${Math.max(0, Math.min(100, v))}%"></i></div></div><span class="muted small">evidence ${nf(r.evidenceScore, 0)} · relevance ${nf(r.missionScore, 0)}</span></td></tr>`; }).join('')}
+   </tbody></table></div>
+   <details><summary class="small">How these numbers are built</summary><ul class="tight small"><li><b>Compatible evidence</b> (0 to 100) = window coverage (55) + gravity match (25) + amount of evidence (20). It answers: does this investigation have tests comparable with the active scenario?</li><li><b>Mission relevance</b> (0 to 100) = relevance to the environment (70) + pillar priority (30). It answers: does this investigation matter for the problem, whether or not its tests match?</li><li><b>Combined score</b> = relevance 35 + coverage 30 + gravity 15 + pillar 10 + evidence 10. These weights are the team's design choice, not a validated metric.</li><li>Relevance and pillar priority are team classifications made with AI assistance and reviewed by the team. Counts and ranges come from the data.</li></ul></details></div>
+  <div class="grid2"><div class="card"><div class="flex"><h3>Test coverage</h3><span class="sp"></span>${seg('yax', [['p', 'O₂ × pressure'], ['fl', 'O₂ × flow']], st.yax)}</div>
+   ${svg}
+   ${legend([{c:'var(--accent)', t:'PSI individual test inside the window'}, {c:'var(--mute)', t:'PSI individual test outside'}].concat(st.psiOnly ? [] : [{h:1, t:'Measured test outside PSI (level 2)'}]))}
+   ${dropNote(co, true)}
+   <p class="small muted">Axis maximum ${nf(axMax)} ${yk === 'p' ? 'kPa' : 'cm/s'}${(yk === 'p' ? st.axP : st.axFl) ? ' (set by hand)' : ' (fitted to the data)'}. Aggregate rows, notes and visualisations are not plotted: ${ni(T.length - T.filter(t => t.plot).length)} of ${ni(T.length)} source rows.</p></div>
+   <div class="card"><h3>What falls inside the window</h3>
+   <div class="tiles"><div class="tile"><div class="big num">${matched.reduce((s, r) => s + (r.v.parent ? 0 : r.m.length), 0)}</div><div class="small muted">PSI individual tests in the window</div></div><div class="tile"><div class="big num">${solidsIn}</div><div class="small muted">of those, with solid materials</div></div>${st.psiOnly ? '' : `<div class="tile"><div class="big num">${xin.length}</div><div class="small muted">tests outside PSI in the window</div></div>`}</div>
+   ${solidsIn === 0 && (w.o2 || w.p) ? `<div class="note crit"><b>Data gap:</b> no PSI solid-material test falls in this window. The highest oxygen tested with solids in PSI is ${nf(maxSolid)} %.${xin.length && !st.psiOnly ? ' Outside PSI there ' + (xin.length === 1 ? 'is 1 test' : 'are ' + xin.length + ' tests') + ': ' + xin.map(x => x.name).join(', ') + '.' : ''}</div>` : `<div class="note ok">${solidsIn} solid-material ${plural(solidsIn, 'test')} fall inside this window and can serve as direct references.</div>`}
+   <button data-act="save" data-what="c1">Save finding to the notebook</button></div></div>`;
+}
+/* ----- C1 step 2 ----- */
+function variability(rows){
+  const out = [], add = (k, lab, u) => { const v = rows.map(t => t[k]).filter(x => x != null && x !== ''); const u2 = uniq(v); if(!v.length) return; out.push({lab, n: u2.length, txt: typeof u2[0] === 'number' ? rngTxt([Math.min(...u2), Math.max(...u2)], u) : u2.slice(0, 5).join('; ') + (u2.length > 5 ? '…' : '')}); };
+  add('o2b', 'O₂', '%'); add('p', 'Pressure', 'kPa'); add('flb', 'Air flow', 'cm/s'); add('fuel', 'Fuel or material'); add('geom', 'Geometry'); add('thk', 'Thickness', 'mm'); add('dil', 'Diluent'); add('dir', 'Flow direction'); add('d0', 'Initial droplet diameter', 'mm');
+  return out;
+}
+/* Pressure cell with its provenance marked, and a legend entry to explain it. */
+const pCell = t => t.p == null ? '<span class="muted" title="No pressure recorded and no assumption applies">no data</span>'
+  : `${nf(t.p)}${t.pstate === 'assumed' ? '<span title="Assumed cabin pressure, not measured">≈</span>' : ''}`;
+/* A value whose source cell carried a qualifier is shown with it. */
+const o2Cell = t => { if(t.o2b == null) return '<span class="muted">—</span>';
+  const q = t.o2k === 'approximate' ? '~' : t.o2k === 'interval' ? '' : '';
+  const txt = t.o2k === 'interval' && t.o2a !== t.o2b ? `${nf(t.o2a)}–${nf(t.o2b)}` : q + nf(t.o2b);
+  return `<span title="${esc(t.o2raw ? 'source cell: ' + t.o2raw : '')}">${txt}</span>`; };
+function c1Detail(b){
+  const st = b.st; if(!st.sel) return `<div class="card"><p>Choose an investigation in step 1 (click a row) to see its detail.</p></div>`;
+  const v = byId(st.sel), r = evalInv(v, st), src = v.parent ? byId(v.parent) : v;
+  const indRows = src.tests.filter(isIndividual), nonInd = src.tests.filter(t => !isIndividual(t));
+  const vr = variability(indRows);
+  const yk = src.fl && src.fl[1] > src.fl[0] ? 'flb' : 'p';
+  const pts = indRows.filter(t => t.o2b != null && t[yk] != null).map(t => { const o = outcomeStyle(t);
+    return {x:t.o2b, y:t[yk], c:o.c, shape:o.shape, t:`${t.tid}: ${t.fuel || '(material not stated)'}; ${t.out || 'outcome not recorded in the table'}`}; });
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y), pad = (a, m) => { const lo = Math.min(...a), hi = Math.max(...a), d = (hi - lo) || m; return [lo - d * .08, hi + d * .08]; };
+  const ms = new Set(r.m), rows = (st.onlyMatch && r.m.length ? r.m : indRows).slice(0, 150);
+  const outs = {}; indRows.forEach(t => { const k = t.out || 'not recorded'; outs[k] = (outs[k] || 0) + 1; });
+  const anyInherit = indRows.some(t => t.matinh), anyAssumed = indRows.some(t => t.pstate === 'assumed'), anyNoP = indRows.some(t => t.pstate === 'no_data');
+  const co = {xr:pad(xs, 2), yr:pad(ys, 2), xl:'Oxygen (%)', yl: yk === 'flb' ? 'Air flow (cm/s)' : 'Pressure (kPa)', pts, title:'Tests of ' + v.acr};
+  const svg = pts.length ? chart(co) : '';
+  return `<div class="card"><div class="flex"><h2>${esc(v.acr)} <span class="muted" style="font-weight:400">· ${v.id}</span></h2>${stPill(r.status)}${v.pil.map(p => `<span class="pill">${PIL[p]}</span>`).join('')}<span class="sp"></span><button data-act="askinv" data-inv="${v.id}">Ask the assistant</button><a href="${psi2url(v.id)}" target="_blank" rel="noopener">Open in PSI</a></div>
+   <p>${esc(v.sum)}</p><p class="small muted">Summary written with AI assistance from the PSI metadata and reports, reviewed by the team. Source: ${esc(v.src)}.</p></div>
+  <div class="grid2"><div class="card"><h3>Investigation record</h3><dl class="kv">
+    <dt>Experimental objective (PSI)</dt><dd><details><summary>${esc(v.obj.slice(0, 150))}…</summary>${esc(v.obj)}</details></dd>
+    <dt>Fuel</dt><dd>${esc(v.fuels)}</dd><dt>Shape and size</dt><dd>${esc(v.samples)}</dd>
+    <dt>Variables that changed</dt><dd>${esc(v.varied)}</dd><dt>Held constant</dt><dd>${esc(v.const)}</dd>
+    <dt>Oxygen tested</dt><dd class="num">${rngTxt(src.o2, '%')}</dd>
+    <dt>Pressure</dt><dd class="num">${rngTxt(src.p, 'kPa')}${anyAssumed ? ' <span class="muted small">(assumed cabin pressure, marked ≈)</span>' : ''}${anyNoP ? ' <span class="muted small">(some tests have no pressure recorded)</span>' : ''}</dd>
+    <dt>Air flow</dt><dd class="num">${rngTxt(src.fl, 'cm/s')}</dd>
+    <dt>Sensors and measurements</dt><dd>${v.meas.map(m => `<span class="pill">${D.meas[m]}</span>`).join(' ')}</dd>
+    <dt>Hardware</dt><dd>${esc(v.hw)}${v.hwtxt ? ' · ' + esc(v.hwtxt) : ''}</dd><dt>Platform and dates</dt><dd>${esc(v.platform || '—')} · ${esc(v.start || '—')} to ${esc(v.end || '—')}</dd>
+    <dt>Data in PSI</dt><dd class="num">${v.nind} individual ${plural(v.nind, 'test')} of ${v.n} source ${plural(v.n, 'row')} · ${nf(v.gb)} GB · ${v.npub} publications</dd>
+    <dt>Citation (DOI)</dt><dd><a href="https://doi.org/${esc(v.doi)}" target="_blank" rel="noopener">${esc(v.doi)}</a></dd>
+    <dt>Application on Earth</dt><dd>${esc(v.earth)}</dd></dl>
+    ${nonInd.length ? `<p class="small muted">${nonInd.length} source ${plural(nonInd.length, 'row')} in this table ${nonInd.length === 1 ? 'is' : 'are'} not an individual test (${uniq(nonInd.map(t => LEVEL_LABEL[t.lvl] || t.lvl)).join(', ')}). They are kept as documentation and are excluded from counts, charts and models.</p>` : ''}</div>
+   <div class="card"><h3>Main results</h3><ul class="tight">${v.res.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+    ${Object.keys(outs).length ? `<h3>Outcomes recorded in the table</h3><p class="num small">${Object.entries(outs).map(([k, n]) => `${esc(k)}: ${n}`).join(' · ')}</p>` : ''}
+    <h3>What varied across its individual tests (computed from the table)</h3><table><tbody>${vr.map(x => `<tr><td>${x.lab}</td><td>${x.n > 1 ? `<span class="pill near">varies</span>` : `<span class="pill">constant</span>`}</td><td class="num">${esc(x.txt)}</td></tr>`).join('') || '<tr><td>No experimental table in PSI</td></tr>'}</tbody></table>
+    ${v.pubs.length ? `<details><summary>Publications (${v.npub})</summary><ul class="tight small">${v.pubs.map(p => `<li>${esc(p[0])}${p[1] ? ` · <a href="https://doi.org/${esc(p[1])}" target="_blank" rel="noopener">DOI</a>` : ''}</li>`).join('')}</ul></details>` : ''}</div></div>
+  ${pts.length ? `<div class="grid2"><div class="card"><div class="flex"><h3>Individual tests (${r.m.length} matching of ${indRows.length})</h3><span class="sp"></span><label class="small"><input type="checkbox" data-bind="onlyMatch" ${st.onlyMatch ? 'checked' : ''}> Only those matching the window</label></div><div class="tw"><table><thead><tr><th>Test</th><th>Material</th><th class="num">O₂ %</th><th class="num">kPa</th><th class="num">cm/s</th><th>Outcome</th></tr></thead><tbody>${rows.map(t => `<tr class="${ms.has(t) ? 'sel' : ''}"><td class="num">${esc(t.tid)}</td><td>${esc(t.fuel || '—')}${t.matinh ? ` <span class="pill" title="Material not stated in this row; inherited from row ${esc(t.matsrc)}, confirmed against the NASA sample layout">inherited from ${esc(t.matsrc)}</span>` : ''}</td><td class="num">${o2Cell(t)}</td><td class="num">${pCell(t)}</td><td class="num">${t.flb == null ? '<span class="muted">—</span>' : nf(t.flb)}${t.flminr != null && t.flminr < 0 ? `<span title="Source recorded a negative minimum flow of ${nf(t.flminr)} cm/s; the magnitude is charted">*</span>` : ''}</td><td>${esc(t.out || '')}${t.out ? '' : '<span class="muted">not recorded</span>'}${t.qa ? ` <span class="pill near" title="${esc(t.qa)}">warning</span>` : ''}</td></tr>`).join('')}</tbody></table></div><p class="small muted">Up to 150 rows. ≈ marks assumed pressure, ~ an approximate source value, * a negative signed flow in the source. Use Extraction for modelling to export them all.${anyInherit ? ' Inherited materials are traceable to the row they came from.' : ''}</p></div>
+   <div class="card"><h3>Map of its individual tests</h3>${svg}${legend(OUTLEG)}${dropNote(co)}</div></div>` : `<div class="card"><p class="muted">This investigation has no experimental table in PSI with oxygen and pressure or flow.</p></div>`}`;
+}
+/* ----- C1 step 3 ----- */
+const jac = (a, b) => { const A = new Set(a), I = b.filter(x => A.has(x)).length, U = new Set([...a, ...b]).size; return U ? I / U : 0; };
+const ovl = (a, b) => { if(!a || !b) return null; const lo = Math.max(a[0], b[0]), hi = Math.min(a[1], b[1]), un = Math.max(a[1], b[1]) - Math.min(a[0], b[0]); return un <= 0 ? (lo <= hi ? 1 : 0) : Math.max(0, hi - lo) / un; };
+function sim(a, b){
+  const A = a.parent ? byId(a.parent) : a, B = b.parent ? byId(b.parent) : b;
+  const sa = A.st.map(s => s === 'gas-emulator' ? 'gas' : s), sb = B.st.map(s => s === 'gas-emulator' ? 'gas' : s);
+  let fs = sa.some(s => sb.includes(s)) ? 1 : 0; if(!fs && ((A.st.includes('gas-emulator') && sb.includes('solid')) || (B.st.includes('gas-emulator') && sa.includes('solid')))) fs = 0.7;
+  const o = ovl(A.o2, B.o2);
+  const d = {'Fuel type': [0.30, fs], 'Safety pillar': [0.20, jac(a.pil, b.pil)], 'Hardware': [0.15, a.hw === b.hw ? 1 : 0], 'Oxygen range': [0.15, o == null ? 0.5 : (o > 0 ? Math.max(o, 0.4) : 0)], 'Measurements': [0.20, jac(a.meas, b.meas)]};
+  return {s: Object.values(d).reduce((t, [w, v]) => t + w * v, 0), d};
+}
+const AFF_MIN = 0.30;
+/* Lowest pairwise affinity across the selected investigations. A forced
+   comparison stays a comparison of features and conditions; it never licenses
+   pooling rows into one model (commit 11). */
+function cmpAffinity(st){
+  const vs = (st.cmp || []).map(byId).filter(Boolean);
+  if(vs.length < 2) return 1;
+  let worst = 1;
+  for(let i = 0; i < vs.length; i++) for(let j = i + 1; j < vs.length; j++) worst = Math.min(worst, sim(vs[i], vs[j]).s);
+  return worst;
+}
+const cmpPoolable = st => cmpAffinity(st) >= AFF_MIN;
+function c1Compare(b){
+  const st = b.st, vs = st.cmp.map(byId);
+  if(vs.length < 2) return `<div class="card"><p>Tick 2 to 4 investigations in step 1 to compare them.</p></div>`;
+  const pairs = []; for(let i = 0; i < vs.length; i++) for(let j = i + 1; j < vs.length; j++) pairs.push({a:vs[i], b:vs[j], ...sim(vs[i], vs[j])});
+  const worst = pairs.reduce((m, p) => p.s < m.s ? p : m, pairs[0]), blocked = worst.s < AFF_MIN && !st.force;
+  const why = p => { const no = Object.entries(p.d).filter(([k, [w, v]]) => v < 0.34).map(([k]) => k.toLowerCase()), si = Object.entries(p.d).filter(([k, [w, v]]) => v >= 0.67).map(([k]) => k.toLowerCase()); return `<b>${esc(p.a.acr)} and ${esc(p.b.acr)}</b>: affinity ${nf(p.s * 100, 0)} %. ${si.length ? 'They agree on ' + si.join(', ') + '. ' : ''}${no.length ? 'They differ on ' + no.join(', ') + '.' : ''}`; };
+  let h = `<div class="card"><div class="flex"><h2>Comparison of ${vs.length} investigations</h2><span class="sp"></span>${SAMPLE ? `<button data-act="aicmp">Explain with AI</button>` : ''}<button data-act="save" data-what="cmp">Save finding</button></div><ul class="tight">${pairs.map(p => `<li>${why(p)}</li>`).join('')}</ul>
+   <p class="small muted">Affinity = fuel type (30 %) + pillar (20 %) + hardware (15 %) + oxygen overlap (15 %) + shared measurements (20 %). These weights are the team's design choice.</p>
+   <details><summary class="small">What a comparison here does and does not license</summary><ul class="tight small"><li><b>Features</b> (fuel, hardware, measurements): safe to compare at any affinity, with the differences listed.</li><li><b>Conditions</b> (oxygen, pressure, flow ranges): safe to compare, but the ranges are what overlap, not the individual tests.</li><li><b>Results</b>: comparable only where the outcome means the same thing in both investigations. A droplet extinction diameter and a fabric burn length are not the same measurement.</li><li><b>Combining rows into one model</b>: only when affinity is at least ${nf(AFF_MIN * 100, 0)} %. Forcing a comparison does not enable this; the modelling block falls back to the investigations that match the scenario.</li></ul></details><div id="aicmpOut"></div></div>`;
+  if(blocked) return h + `<div class="note crit"><b>Side-by-side numbers withheld.</b> ${esc(worst.a.acr)} and ${esc(worst.b.acr)} have little in common (affinity ${nf(worst.s * 100, 0)} %): comparing their numbers directly would invite a wrong conclusion, because they differ on ${Object.entries(worst.d).filter(([k, [w, v]]) => v < 0.34).map(([k]) => k.toLowerCase()).join(', ') || 'most attributes'}. Remove one of the two, or choose investigations with the same fuel type or hardware.<div class="flex" style="margin-top:6px"><button data-act="force">Compare anyway, on my own judgement</button></div><p class="small" style="margin-top:4px">Comparing anyway shows the features and conditions with the low-affinity warning kept visible. It does not pool their rows for modelling.</p></div>`;
+  const row = (lab, f) => `<tr><th>${lab}</th>${vs.map(v => `<td>${f(v, v.parent ? byId(v.parent) : v)}</td>`).join('')}</tr>`;
+  const allM = uniq(vs.flatMap(v => v.meas));
+  const bars = (lab, key, lo, hi, u, wv) => `<div><div class="small muted">${lab} (${lo} a ${hi} ${u})</div>${vs.map(v => { const s = v.parent ? byId(v.parent) : v, r = s[key]; return `<div class="flex" style="flex-wrap:nowrap;gap:8px"><span class="small" style="width:110px">${esc(v.acr.slice(0, 16))}</span><div class="rng" style="flex:1">${r ? `<i style="left:${(r[0] - lo) / (hi - lo) * 100}%;width:${Math.max(0.8, (r[1] - r[0]) / (hi - lo) * 100)}%"></i>` : ''}${wv ? `<i class="w" style="left:${Math.max(0, (wv[0] - lo) / (hi - lo) * 100)}%;width:${Math.max(0.8, (Math.min(hi, wv[1]) - Math.max(lo, wv[0])) / (hi - lo) * 100)}%"></i>` : ''}</div><span class="num small" style="width:96px">${rngTxt(r, '')}</span></div>`; }).join('')}</div>`;
+  const w = win(st);
+  const same = [], diff = []; const chk = (lab, f) => { const vals = vs.map(v => f(v, v.parent ? byId(v.parent) : v)); (uniq(vals).length === 1 ? same : diff).push(lab + ': ' + (uniq(vals).length === 1 ? vals[0] : vs.map((v, i) => v.acr + ' → ' + vals[i]).join('; '))); };
+  chk('Fuel type', (v, s) => s.st.map(x => STL[x] || x).join(', ')); chk('Pillar', v => v.pil.map(p => PIL[p]).join(', ')); chk('Hardware', v => v.hw); chk('Platform', v => v.platform || '—'); chk('Study type', v => v.type);
+  const cm = allM.filter(m => vs.every(v => v.meas.includes(m)));
+  h += (st.force && worst.s < AFF_MIN ? `<div class="note"><b>Forced comparison:</b> lowest affinity ${nf(worst.s * 100, 0)} %. Features and conditions are shown below; read the differences carefully, and note that these investigations are not pooled for modelling.</div>` : '') + `<div class="grid2e"><div class="card"><h3>Similarities</h3><ul class="tight">${same.map(s => `<li>${esc(s)}</li>`).join('') || '<li>None among the general attributes</li>'}${cm.length ? `<li>Shared measurements: ${cm.map(m => D.meas[m]).join(', ')}</li>` : ''}</ul></div><div class="card"><h3>Differences</h3><ul class="tight">${diff.map(s => `<li>${esc(s)}</li>`).join('') || '<li>None among the general attributes</li>'}</ul></div></div>
+  <div class="card"><h3>Test conditions: how they vary</h3>${bars('Oxygen', 'o2', 10, 100, '%', w.o2)}${bars('Pressure', 'p', 20, 520, 'kPa', w.p)}${bars('Air flow', 'fl', 0, 90, 'cm/s', w.fl)}<p class="small muted">Blue bar: range tested by each investigation, over its individual tests. Dashed frame: the filter window from step 1. Overlapping ranges do not mean the individual tests are comparable.</p></div>
+  <div class="card"><h3>Side by side</h3><div class="tw" style="max-height:none"><table><thead><tr><th></th>${vs.map(v => `<th>${esc(v.acr)}<br><span class="muted small">${v.id}</span></th>`).join('')}</tr></thead><tbody>
+   ${row('Pillar', v => v.pil.map(p => PIL[p]).join(', '))}${row('Fuel type', (v, s) => s.st.map(x => STL[x] || x).join(', '))}${row('Fuels', v => esc(v.fuels))}${row('Shape and size', v => esc(v.samples))}${row('Variables that changed', v => esc(v.varied))}${row('Held constant', v => esc(v.const))}
+   ${row('O₂ (%)', (v, s) => `<span class="num">${rngTxt(s.o2)}</span>`)}${row('Pressure (kPa)', (v, s) => `<span class="num">${rngTxt(s.p)}</span>`)}${row('Flow (cm/s)', (v, s) => `<span class="num">${rngTxt(s.fl)}</span>`)}${row('Hardware', v => esc(v.hw))}${row('Individual tests', v => `<span class="num">${v.nind}</span>`)}${row('Source rows', v => `<span class="num">${v.n}</span>`)}${row('Publications', v => `<span class="num">${v.npub}</span>`)}${row('Main result', v => esc(v.res[0]))}
+   </tbody></table></div></div>
+  <div class="card"><h3>Sensors and measurements</h3><div class="tw" style="max-height:none"><table><thead><tr><th>Measurement</th>${vs.map(v => `<th>${esc(v.acr)}</th>`).join('')}</tr></thead><tbody>${allM.map(m => `<tr><td>${D.meas[m]}</td>${vs.map(v => `<td>${v.meas.includes(m) ? '●' : '<span class="muted">—</span>'}</td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="small muted">A shared measurement means both investigations recorded that quantity, not that the values are comparable.</p></div>`;
+  return h;
+}
+/* ---------- C2 ---------- */
+const NC = {o2b:'O₂ (%)', o2i:'O₂ initial, calibrated (%)', o2f:'O₂ final, calibrated (%)', p:'Pressure (kPa)', flb:'Air flow, max (cm/s)', fla:'Air flow, min (cm/s)', flminr:'Air flow, min as recorded, signed (cm/s)', thk:'Thickness (mm)', d0:'Initial droplet diameter (mm)', dext:'Extinction diameter (mm)', K:'Burning rate K (mm²/s, FLEX table)', bt:'Burn time (s)', co2:'CO₂ in the ambient (%)', he:'He in the ambient (%)', ign:'Ignition (1 yes, 0 no)', ext:'Extinction (1 yes, 0 no)', blug:'Burn length in µg (cm)', bl1g:'Burn length in 1 g (cm)'};
+const CC = {invn:'Investigation', tbl:'Source table', tid:'Test', lvl:'Row level', st:'Fuel state', fuel:'Fuel or material', geom:'Geometry', dil:'Diluent', dir:'Flow direction', grav:'Gravity', out:'Outcome', pstate:'Pressure provenance', o2k:'O₂ value kind', qa:'Quality warning', note:'Notes'};
+/* Qualifier-aware cell parser, the JavaScript counterpart of
+   pipeline/measurements.py. It does not strip "<", ">" or "~" and then present
+   the remainder as an exact number (commit 4). */
+const UNIT_RE = /\s*(?:mm\^?2\/s|mm²\/s|cm\/s|mm\/s|m\/s|mg\/min|mg\/s|sccm|mmHg|torr|kPa|psia|psi|atm|bar|micron|µm|um|mm|cm|sec|min|deg ?C|°C|%|W|kV|K)\s*$/i;
+function parseCell(s){
+  const raw = String(s == null ? '' : s).trim();
+  if(!raw) return {raw, value:null, op:'', kind:'empty', lower:null, upper:null};
+  if(/^(n\/?a|none|nil|tbd|unknown|see\b.*|insignificant|complete\w*|accelerat\w*|yes|no|\?+|-+|—+)$/i.test(raw))
+    return {raw, value:null, op:'', kind:'unparseable', lower:null, upper:null};
+  let body = raw.replace(UNIT_RE, '');
+  if(/^[-+]?\d+,\d{1,2}$/.test(body)) body = body.replace(',', '.'); else body = body.replace(/,(?=\d{3}\b)/g, '');
+  let op = '';
+  const m = /^(<=|=<|≤|>=|=>|≥|<|>|~|≈|ca\.|approx\.?|about)\s*/i.exec(body);
+  if(m){ const t = m[1].toLowerCase(); op = t === '=<' || t === '≤' ? '<=' : t === '=>' || t === '≥' ? '>=' : (t === '≈' || t === 'ca.' || t === 'approx' || t === 'approx.' || t === 'about') ? '~' : t; body = body.slice(m[0].length); }
+  const N = /[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g;
+  // Range, e.g. "21.5-21.7" or "22.1 to 22.0" (only between two numbers).
+  if(!op){
+    const r = /^([-+]?(?:\d+\.?\d*|\.\d+))\s*(?:--|–|—|to|through|\.\.\.?|-)\s*([-+]?(?:\d+\.?\d*|\.\d+))$/i.exec(body.trim());
+    if(r){ const a = parseFloat(r[1]), c = parseFloat(r[2]);
+      if(isFinite(a) && isFinite(c)) return {raw, value:null, op:'', kind:'interval', lower:Math.min(a, c), upper:Math.max(a, c)}; }
+  }
+  const nums = body.match(N);
+  if(!nums) return {raw, value:null, op:'', kind:'unparseable', lower:null, upper:null};
+  const v = parseFloat(nums[0]);
+  if(!isFinite(v)) return {raw, value:null, op:'', kind:'unparseable', lower:null, upper:null};
+  if(op === '<' || op === '>' || op === '<=' || op === '>=')
+    return {raw, value:v, op, kind:'censored', lower: op[0] === '>' ? v : null, upper: op[0] === '<' ? v : null};
+  if(op === '~') return {raw, value:v, op:'~', kind:'approximate', lower:v, upper:v};
+  return {raw, value:v, op:'', kind:'exact', lower:v, upper:v};
+}
+/* Numeric accessor. Censored bounds and intervals stay out unless opted in. */
+function cellNum(s, opt){
+  const m = parseCell(s), o = opt || {};
+  if(m.kind === 'exact') return m.value;
+  if(m.kind === 'approximate') return o.noApprox ? null : m.value;
+  if(m.kind === 'censored') return o.censored ? m.value : null;
+  if(m.kind === 'interval') return o.interval ? (m.lower + m.upper) / 2 : null;
+  return null;
+}
+const numCell = s => cellNum(s, {});
+const cellKind = s => parseCell(s).kind;
+function c2Data(b){
+  const st = b.st, ids = srcInvs(b);
+  if(st.ds === 'norm'){
+    let rows = T.filter(t => ids.includes(INV[t.inv].id));
+    const before = rows.length;
+    if(st.onlyTests) rows = rows.filter(isIndividual);
+    const afterLevel = rows.length;
+    if(st.exQA) rows = rows.filter(t => !t.qa);
+    rows = rows.map(t => ({...t, invn: INV[t.inv].acr}));
+    const cols = Object.keys(CC).concat(Object.keys(NC)).map(k => ({k, lab: NC[k] || CC[k], num: k in NC, fill: rows.filter(r => r[k] != null && r[k] !== '').length / (rows.length || 1)}));
+    return {rows, cols, dropped:{level: before - afterLevel, qa: afterLevel - rows.length}};
+  }
+  const R = D.raw[+st.ds]; if(!R) return {rows:[], cols:[], dropped:{}};
+  const rows = R.rows.map(r => { const o = {}; R.cols.forEach((c, i) => o['c' + i] = r[i]); return o; });
+  const cols = R.cols.map((c, i) => {
+    const vals = rows.map(r => r['c' + i]).filter(v => v !== '');
+    const kinds = vals.map(cellKind);
+    const nn = kinds.filter(k => k === 'exact' || k === 'approximate' || k === 'censored' || k === 'interval').length;
+    return {k:'c' + i, lab:c, num: vals.length > 0 && nn / vals.length >= 0.7, fill: vals.length / (rows.length || 1), raw:true,
+            nCens: kinds.filter(k => k === 'censored').length, nApprox: kinds.filter(k => k === 'approximate').length, nInt: kinds.filter(k => k === 'interval').length};
+  });
+  return {rows, cols, raw:true, file:R.file, inv:INV[R.inv], dropped:{}};
+}
+function c2Cols(b){ const d = c2Data(b); if(!b.st.cols) b.st.cols = Object.fromEntries(d.cols.map(c => [c.k, c.fill > 0 && c.k !== 'note'])); return d; }
+const c2Rows = b => c2Data(b).rows;
+/* Reading a value for an analysis. Censored bounds are excluded by default so a
+   detection limit never enters a regression as an exact point (commit 4). */
+function val(r, c, st){
+  if(!c.raw) return r[c.k];
+  if(!c.num) return r[c.k];
+  return cellNum(r[c.k], {censored: st ? !st.exCensored : false});
+}
+/* How many values a column loses to the censored-value rule, for reporting. */
+const censCount = (rows, c) => !c.raw || !c.num ? 0 : rows.filter(r => parseCell(r[c.k]).kind === 'censored').length;
+
+/* Preconfigured analyses (commit 12). Each is offered only when its variables
+   exist and vary, and each carries the reason the pairing is defensible. An
+   investigation with no entry here gets exploratory mode: no default model and
+   no preassigned physical interpretation. */
+const PRESETS = {
+ 'PSI-25': [{id:'bass2-limit', label:'Limiting O₂ against air flow', x:'flb', y:'o2b', gcol:'', gval:'', method:'int',
+   why:'The BASS-II flammability boundary is a limiting oxygen concentration as a function of flow over PMMA. Plotting O₂ against flow follows the form of that boundary. Pressure against O₂ is not offered as a default here, because BASS-II held cabin pressure constant.'}],
+ 'PSI-69': [{id:'flex-k', label:'Burning rate K against O₂ (one fuel at a time)', x:'o2b', y:'K', gcol:'fuel', gval:'Methanol', method:'lin',
+   why:'FLEX varied oxygen, pressure and diluent for single droplets. Burning rate responds to oxygen, so the comparison is meaningful only within one fuel; use the diluent and pressure filters before reading across conditions.'},
+  {id:'flex-dext', label:'Extinction diameter against O₂ (one fuel at a time)', x:'o2b', y:'dext', gcol:'fuel', gval:'Methanol', method:'lin',
+   why:'A larger extinction diameter means the flame went out earlier with more fuel left, so this is the suppression-relevant pairing. Keep one fuel selected: heptane and methanol are not interchangeable.'}],
+ 'PSI-159': [{id:'cfig-burn', label:'Burn time against O₂', x:'o2b', y:'bt', gcol:'fuel', gval:'', method:'lin',
+   why:'ACME CFI-G recorded burn time per test across a wide oxygen range, so the pairing has a direct reading. Filter by fuel before interpreting a slope.'}],
+ 'PSI-99': [{id:'s2-ug1g', label:'Burn length in µg against burn length in 1 g', x:'bl1g', y:'blug', gcol:'', gval:'', method:'lin',
+   why:'SAFFIRE-II is the one investigation here that measured the same nine samples in both gravity levels, which is what makes the µg-against-1-g comparison legitimate. With nine points it is a comparison, not a validated model.'}]
+};
+const EXPLORATORY_NOTE = 'No preconfigured analysis for this investigation: its table does not support one pairing as obviously meaningful. This is exploratory mode. Choose variables yourself and treat any fit as a description of these rows, not as a physical law.';
+
+function colVaries(d, k, st){
+  const c = d.cols.find(x => x.k === k); if(!c) return false;
+  const v = d.rows.map(r => val(r, c, st)).filter(x => x != null && x !== '');
+  if(!v.length) return false;
+  return Math.max(...v) > Math.min(...v);
+}
+function presetsFor(b){
+  const d = c2Data(b), st = b.st, ids = srcInvs(b);
+  if(st.ds !== 'norm' || ids.length !== 1) return [];
+  return (PRESETS[ids[0]] || []).filter(p => {
+    const cx = d.cols.find(c => c.k === p.x), cy = d.cols.find(c => c.k === p.y);
+    if(!cx || !cy) return false;
+    const n = d.rows.filter(r => val(r, cx, st) != null && val(r, cy, st) != null).length;
+    return n >= 5 && colVaries(d, p.x, st) && colVaries(d, p.y, st);
+  });
+}
+function applyPreset(b, id){
+  const p = presetsFor(b).find(x => x.id === id); if(!p) return;
+  const st = b.st; st.preset = id; st.x = p.x; st.y = p.y; st.gcol = p.gcol; st.gval = p.gval; st.method = p.method; st.last = null; st.xqAuto = true;
+}
+function pickXY(b){
+  const d = c2Data(b), st = b.st, nums = d.cols.filter(c => c.num), cnt = (x, y) => d.rows.filter(r => val(r, x, st) != null && val(r, y, st) != null).length;
+  st.preset = '';
+  const ps = presetsFor(b);
+  if(ps.length){ applyPreset(b, ps[0].id); return; }
+  const idc = c => /#|test|date|gmt|day|sample|year|month|number/i.test(c.lab); const x = nums.find(c => c.k === 'o2b') || nums.find(c => /o2|oxy|^o initial/i.test(c.lab)) || nums.find(c => !idc(c)) || nums[0]; if(!x){ st.x = st.y = null; return; }
+  const pref = ['K', 'bt', 'dext', 'ext', 'ign'].map(k => nums.find(c => c.k === k)).filter(Boolean).concat(nums.filter(c => c !== x && !idc(c)), nums.filter(c => c !== x));
+  const y = pref.find(c => c !== x && cnt(x, c) >= 8) || pref.find(c => c !== x) || x;
+  st.x = x.k; st.y = y.k; const g = d.cols.find(c => c.k === 'fuel'); st.gcol = g ? 'fuel' : ''; st.gval = '';
+  if(g){ const cn = {}; d.rows.forEach(r => { if(val(r, x, st) != null && val(r, y, st) != null && r.fuel) cn[r.fuel] = (cn[r.fuel] || 0) + 1; }); const top = Object.entries(cn).sort((a, b) => b[1] - a[1])[0]; if(top && Object.keys(cn).length > 1) st.gval = top[0]; }
+  st.last = null; st.xqAuto = st.x !== 'o2b';
+}
+function c2Source(b){
+  const st = b.st, ids = srcInvs(b), linked = b.link && blk(b.link);
+  const forced = linked && blk(b.link).st.cmp.length && !cmpPoolable(blk(b.link).st);
+  return `<div class="card"><h2>Data source</h2><p>${linked ? `This block is linked to block ${b.link}: it uses ${blk(b.link).st.cmp.length && !forced ? 'the investigations ticked for comparison' : 'the investigations that match the scenario'} from that block. Set the input to Independent in the schematic to choose them here.` : 'Choose the investigations whose data you want to extract.'}</p>
+   ${forced ? `<div class="note crit"><b>Forced comparison not pooled.</b> Block ${b.link} has a comparison forced through below ${nf(AFF_MIN * 100, 0)} % affinity. Those investigations are not combined into one dataset here; this block uses the investigations that match the scenario instead. To model a specific pair, set this block to Independent and select them deliberately.</div>` : ''}
+   <div class="tw"><table><thead><tr><th></th><th>Investigation</th><th>Fuel</th><th class="num">Individual tests</th><th class="num">O₂ %</th><th class="num">Pressure kPa</th><th class="num">Flow cm/s</th><th>Original tables</th></tr></thead><tbody>${INV.filter(v => v.nind).map(v => `<tr class="${ids.includes(v.id) ? 'sel' : ''}"><td><input type="checkbox" data-act="c2inv" data-inv="${v.id}" ${ids.includes(v.id) ? 'checked' : ''} ${linked ? 'disabled' : ''} aria-label="Include ${esc(v.acr)}"></td><td><b>${esc(v.acr)}</b> <span class="muted small">${v.id}</span></td><td>${v.st.map(s => STL[s] || s).join(', ')}</td><td class="num">${v.nind}${v.n > v.nind ? ` <span class="muted small">(+${v.n - v.nind})</span>` : ''}</td><td class="num">${rngTxt(v.o2)}</td><td class="num">${rngTxt(v.p)}</td><td class="num">${rngTxt(v.fl)}</td><td class="small">${D.raw.filter(r => r.inv === v.i).map(r => esc(r.name)).join(', ')}</td></tr>`).join('')}</tbody></table></div>
+   <p class="small muted">The normalised table brings every investigation to the same columns and units: O₂ in % by volume, pressure in kPa and air speed in cm/s. Fuel flow rates (mg/s, sccm) belong to each burner and stay in the original tables, which you can select in the toolbox. The figure in brackets is source rows that are not individual tests: aggregates, notes and visualisations.</p></div>`;
+}
+function c2Vars(b){
+  const d = c2Cols(b), st = b.st, on = d.cols.filter(c => st.cols[c.k]), prev = d.rows.slice(0, 40);
+  const drop = d.dropped || {};
+  return `<div class="card"><div class="flex"><h2>Available variables</h2><span class="sp"></span><span class="muted small">${d.rows.length} rows · ${on.length} of ${d.cols.length} variables active</span><button data-act="colsAll" data-v="1">Enable all</button><button data-act="colsAll" data-v="0">Disable all</button></div>
+   <p class="small muted">${d.raw ? `Original PSI table: ${esc(d.file)}.` : 'Normalised table.'} The percentage is the share of rows in which the variable has a value.</p>
+   ${(drop.level || drop.qa) ? `<p class="small muted">Excluded from this selection: ${[drop.level ? drop.level + ' rows that are not individual tests' : '', drop.qa ? drop.qa + ' rows carrying a quality warning' : ''].filter(Boolean).join(', ')}. Change either in the toolbox.</p>` : ''}
+   <div class="cols">${d.cols.map(c => { const cs = censCount(d.rows, c); return `<label><input type="checkbox" data-act="col" data-k="${c.k}" ${st.cols[c.k] ? 'checked' : ''}><span>${esc(c.lab)} <span class="muted num">${c.num ? 'num.' : 'text'} · ${nf(c.fill * 100, 0)} %</span>${cs ? ` <span class="pill near" title="${cs} values in this column are written as a bound">${cs} censored</span>` : ''}${c.raw && c.nInt ? ` <span class="pill near" title="${c.nInt} values are written as a range">${c.nInt} ranges</span>` : ''}</span></label>`; }).join('')}</div></div>
+  <div class="card"><h3>Preview (first ${prev.length} rows)</h3><div class="tw"><table><thead><tr>${on.map(c => `<th>${esc(c.lab)}</th>`).join('')}</tr></thead><tbody>${prev.map(r => `<tr>${on.map(c => `<td class="${c.num ? 'num' : ''}">${esc(c.num && !c.raw ? nf(r[c.k], 3) : (r[c.k] == null ? '' : r[c.k]))}</td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="small muted">The preview shows the source text for original PSI tables, so a qualifier such as ~ or &lt; stays visible.</p></div>`;
+}
+/* fits */
+function fitLS(xs, ys, tx, ty, inv, eq){ const X = xs.map(tx), Y = ys.map(ty), n = X.length, mx = mean(X), my = mean(Y); let sxy = 0, sxx = 0; for(let i = 0; i < n; i++){ sxy += (X[i] - mx) * (Y[i] - my); sxx += (X[i] - mx) ** 2; } if(!sxx) return null; const b = sxy / sxx, a = my - b * mx; return {f: x => inv(a + b * tx(x)), a, b, eq: eq(a, b)}; }
+function r2of(f, xs, ys){ const my = mean(ys); let sr = 0, st = 0; for(let i = 0; i < xs.length; i++){ const p = f(xs[i]); if(p == null || isNaN(p)) continue; sr += (ys[i] - p) ** 2; st += (ys[i] - my) ** 2; } return st ? 1 - sr / st : null; }
+function doFit(m, xs, ys){
+  const n = xs.length, lo = Math.min(...xs), hi = Math.max(...xs);
+  if(n < 3) return {err:`Only ${n} ${plural(n, 'point')} with values in both variables. At least 3 are needed.`};
+  if(lo === hi) return {err:`The X variable does not vary: every one of the ${n} rows has x = ${nf(lo, 3)}. A model needs variation in X. Choose another variable or widen the filter.`};
+  if(Math.min(...ys) === Math.max(...ys)) return {err:`The Y variable does not vary: every one of the ${n} rows has y = ${nf(ys[0], 3)}. There is nothing for a model to explain.`};
+  let F = null;
+  if(m === 'lin') F = fitLS(xs, ys, x => x, y => y, v => v, (a, b) => `y = ${nf(a, 4)} + ${nf(b, 4)}·x`);
+  if(m === 'pow'){ if(xs.some(v => v <= 0) || ys.some(v => v <= 0)) return {err:'A power law needs X and Y greater than zero.'}; F = fitLS(xs, ys, Math.log, Math.log, Math.exp, (a, b) => `y = ${nf(Math.exp(a), 4)}·x^${nf(b, 3)}`); }
+  if(m === 'exp'){ if(ys.some(v => v <= 0)) return {err:'An exponential needs Y greater than zero.'}; F = fitLS(xs, ys, x => x, Math.log, Math.exp, (a, b) => `y = ${nf(Math.exp(a), 4)}·e^(${nf(b, 4)}·x)`); }
+  if(m === 'log'){ if(ys.some(v => v !== 0 && v !== 1)) return {err:'Logistic regression needs a Y variable of 0 and 1, such as Ignition or Extinction.'}; const mx = mean(xs), sx = Math.sqrt(mean(xs.map(v => (v - mx) ** 2))) || 1; let a = 0, b = 0; for(let it = 0; it < 3000; it++){ let ga = 0, gb = 0; for(let i = 0; i < n; i++){ const z = (xs[i] - mx) / sx, p = 1 / (1 + Math.exp(-(a + b * z))); ga += ys[i] - p; gb += (ys[i] - p) * z; } a += 0.5 * ga / n; b += 0.5 * gb / n; } const f = x => 1 / (1 + Math.exp(-(a + b * (x - mx) / sx))); const acc = xs.filter((x, i) => (f(x) >= 0.5 ? 1 : 0) === ys[i]).length / n; return {f, eq:`P(y=1) = 1 / (1 + e^-(${nf(a - b * mx / sx, 3)} + ${nf(b / sx, 4)}·x))`, n, lo, hi, metric:`In-sample accuracy: ${nf(acc * 100, 0)} %`, metricKind:'fit', sd:null, canExtrapolate:true}; }
+  if(m === 'knn'){ const k = Math.min(5, n); F = {f: x => { if(x < lo || x > hi) return null; const d = xs.map((v, i) => [Math.abs(v - x), ys[i]]).sort((p, q) => p[0] - q[0]).slice(0, k); return mean(d.map(p => p[1])); }, eq:`Mean of the ${k} nearest tests in X (does not extrapolate)`, noExtrap:true}; }
+  if(m === 'int'){ const g = {}; xs.forEach((x, i) => (g[x] = g[x] || []).push(ys[i])); const P = Object.keys(g).map(Number).sort((p, q) => p - q).map(x => [x, mean(g[x])]); F = {f: x => { if(x < lo || x > hi) return null; for(let i = 1; i < P.length; i++) if(x <= P[i][0]){ const [x0, y0] = P[i - 1], [x1, y1] = P[i]; return y0 + (y1 - y0) * (x - x0) / (x1 - x0 || 1); } return P[P.length - 1][1]; }, eq:`Linear interpolation between the mean at each X value (${P.length} nodes; does not extrapolate)`, noExtrap:true}; }
+  if(!F) return {err:'Could not fit a model to these data.'};
+  const r2 = r2of(F.f, xs, ys), res = xs.map((x, i) => { const p = F.f(x); return p == null ? null : ys[i] - p; }).filter(v => v != null);
+  return {...F, n, lo, hi, metric: r2 == null ? '' : `R² = ${nf(r2, 3)}`, metricKind:'fit', r2,
+          sd: Math.sqrt(mean(res.map(v => v * v)))};
+}
+/* Grouped cross-validation (commit 12).
+   Rows from one campaign, sample or test day are not independent, so a random
+   row-wise split would put siblings in both training and test and report a
+   validation score that is really a fit score. Folds are therefore built from
+   whole groups. Returns null when there are too few groups to validate at all,
+   which is itself the honest answer. */
+function groupKeyOf(r){
+  if(r == null) return '?';
+  const k = [r.invn, r.tbl, r.fuel, r.dil, r.grav].filter(v => v != null && v !== '').join('|');
+  return k || String(r.tid || '?');
+}
+function cvGrouped(method, P){
+  const groups = {};
+  P.forEach(p => { const k = groupKeyOf(p[2]); (groups[k] = groups[k] || []).push(p); });
+  const keys = Object.keys(groups);
+  if(keys.length < 3) return {ok:false, reason:`only ${keys.length} independent ${plural(keys.length, 'group')} of rows (${keys.length < 2 ? 'all rows share' : 'rows share'} the same investigation, table, fuel and diluent). A held-out split would reuse related rows, so no validation score is reported.`, groups: keys.length};
+  const k = Math.min(5, keys.length);
+  const folds = Array.from({length: k}, () => []);
+  keys.forEach((key, i) => folds[i % k].push(key));
+  let sse = 0, sst = 0, nPred = 0, skipped = 0;
+  const allY = P.map(p => p[1]), my = mean(allY);
+  for(const fold of folds){
+    const testKeys = new Set(fold);
+    const train = P.filter(p => !testKeys.has(groupKeyOf(p[2])));
+    const test = P.filter(p => testKeys.has(groupKeyOf(p[2])));
+    if(train.length < 3 || !test.length){ skipped++; continue; }
+    const f = doFit(method, train.map(p => p[0]), train.map(p => p[1]));
+    if(f.err){ skipped++; continue; }
+    test.forEach(p => { const yh = f.f(p[0]); if(yh == null || !isFinite(yh)) return; sse += (p[1] - yh) ** 2; sst += (p[1] - my) ** 2; nPred++; });
+  }
+  if(nPred < 3) return {ok:false, reason:'the folds did not produce enough out-of-sample predictions to score.', groups: keys.length};
+  return {ok:true, groups: keys.length, folds: k - skipped, n: nPred,
+          rmse: Math.sqrt(sse / nPred), q2: sst ? 1 - sse / sst : null};
+}
+const METHODS = [['int', 'Linear interpolation'], ['knn', 'Nearest neighbours'], ['lin', 'Straight line (least squares)'], ['pow', 'Power law'], ['exp', 'Exponential'], ['log', 'Logistic (yes or no)']];
+function c2Model(b){
+  const d = c2Cols(b), st = b.st, nums = d.cols.filter(c => c.num), cats = d.cols.filter(c => !c.num && uniq(d.rows.map(r => r[c.k])).length <= 40 && uniq(d.rows.map(r => r[c.k])).length > 1);
+  if(nums.length < 2) return `<div class="card"><p>This table has fewer than two numeric variables. Choose another table in the toolbox.</p></div>`;
+  if(!nums.some(c => c.k === st.x) || !nums.some(c => c.k === st.y)) pickXY(b);
+  const cx = nums.find(c => c.k === st.x), cy = nums.find(c => c.k === st.y), gc = cats.find(c => c.k === st.gcol);
+  const gvals = gc ? uniq(d.rows.map(r => r[gc.k]).filter(v => v !== '' && v != null)).sort() : [];
+  let rows = d.rows; if(gc && st.gval) rows = rows.filter(r => r[gc.k] === st.gval);
+  const P = rows.map(r => [val(r, cx, st), val(r, cy, st), r]).filter(p => p[0] != null && p[1] != null), xs = P.map(p => p[0]), ys = P.map(p => p[1]);
+  const censX = st.exCensored ? censCount(rows, cx) : 0, censY = st.exCensored ? censCount(rows, cy) : 0;
+  const ps = presetsFor(b);
+  // If the current selection already matches a preconfigured analysis, say so
+  // rather than calling it exploratory.
+  if(!st.preset){ const m = ps.find(p => p.x === st.x && p.y === st.y && (p.gcol || '') === (st.gcol || '')); if(m) st.preset = m.id; }
+  const active = ps.find(p => p.id === st.preset);
+  if(st.xqAuto && xs.length){ const q = [...xs].sort((a, b) => a - b); st.xq = +q[Math.floor(q.length / 2)].toPrecision(4); st.xqAuto = false; }
+  const fit = P.length ? doFit(st.method, xs, ys) : {err:'No rows have a value in both variables.'};
+  const cv = (!fit.err && P.length >= 8 && st.method !== 'knn' && st.method !== 'int') ? cvGrouped(st.method, P) : null;
+  // Conditions mixed into one fit, which the user must know about before reading a slope.
+  const mixed = [];
+  if(!d.raw){
+    const chk = (k, lab) => { const u = uniq(rows.map(r => r[k]).filter(v => v != null && v !== '')); if(u.length > 1) mixed.push(`${lab} (${u.length}: ${u.slice(0, 4).join(', ')}${u.length > 4 ? '…' : ''})`); };
+    chk('invn', 'investigations'); chk('fuel', 'materials'); chk('dil', 'diluents'); chk('geom', 'geometries');
+    const pu = uniq(rows.map(r => r.p).filter(v => v != null)); if(pu.length > 1) mixed.push(`pressures (${nf(Math.min(...pu))} to ${nf(Math.max(...pu))} kPa)`);
+  }
+  let out = '', ch = '', co = null;
+  if(P.length){
+    const lo = Math.min(...xs), hi = Math.max(...xs), xq = +st.xq, xr = [Math.min(lo, xq) - (hi - lo || 1) * .06, Math.max(hi, xq) + (hi - lo || 1) * .06];
+    const yq = fit.err ? null : fit.f(xq), allY = ys.concat(yq != null && isFinite(yq) ? [yq] : []), ylo = Math.min(...allY), yhi = Math.max(...allY), yr = [ylo - (yhi - ylo || 1) * .08, yhi + (yhi - ylo || 1) * .08];
+    const inside = xq >= lo && xq <= hi;
+    co = {xr, yr, xl:cx.lab, yl:cy.lab, pts: P.map(p => ({x:p[0], y:p[1], c:'var(--s1)', t:`${p[2].invn || ''} ${p[2].tid || ''}: x=${nf(p[0], 3)}, y=${nf(p[1], 3)}`})), lines: fit.err ? [] : [{f:fit.f, c:'var(--g1)', dash: !inside}], rects: [{x0:lo, x1:hi, y0:yr[0], y1:yr[1], fill:'var(--s1)', label:'Range with data'}], vlines:[{x:xq, label:'x queried'}], marks: yq != null && isFinite(yq) ? [{x:xq, y:yq, label:nf(yq, 3)}] : [], title:'Model fit'};
+    ch = chart(co);
+    if(fit.err) out = `<div class="note crit">${esc(fit.err)}</div>`;
+    else { st.last = {x:cx.lab, y:cy.lab, method: METHODS.find(m => m[0] === st.method)[1], eq:fit.eq, n:fit.n, metric:fit.metric, range:[lo, hi], xq, yq, inside, group: gc && st.gval ? gc.lab + ' = ' + st.gval : 'all rows', cv: cv && cv.ok ? {q2:cv.q2, rmse:cv.rmse, groups:cv.groups} : null, preset: active ? active.label : null};
+      out = `<div class="tiles">
+        <div class="tile"><div class="small muted">Prediction at x = ${nf(xq, 2)}</div><div class="big num" id="predOut">${yq == null || !isFinite(yq) ? 'no value' : nf(yq, 3)}</div><div class="small muted" id="predKind">${inside ? 'Interpolation, inside the measured range' : 'Extrapolation, outside the measured range'}</div></div>
+        <div class="tile"><div class="small muted">Fit on these data</div><div class="big num">${esc(fit.metric)}</div><div class="small muted">n = ${fit.n} ${plural(fit.n, 'test')} · not a validation</div></div>
+        <div class="tile"><div class="small muted">Out-of-sample validation</div><div class="big num">${cv && cv.ok ? 'Q² = ' + nf(cv.q2, 3) : '—'}</div><div class="small muted">${cv ? (cv.ok ? `grouped ${cv.folds}-fold over ${cv.groups} ${plural(cv.groups, 'group')} · RMSE ${nf(cv.rmse, 3)}` : 'not possible: ' + esc(cv.reason)) : 'needs at least 8 points and a method that extrapolates'}</div></div>
+        <div class="tile"><div class="small muted">Range of X with data</div><div class="big num">${nf(lo, 2)} to ${nf(hi, 2)}</div><div class="small muted">${cx.lab}</div></div></div>
+       ${inside ? `<div class="note ok">${lv(3)} <b>Interpolation.</b> x = ${nf(xq, 2)} lies inside the measured range, so the value is read between observations.</div>`
+                : `<div class="note crit">${lv(4)} <b>Extrapolation: not validated experimentally.</b> x = ${nf(xq, 2)} is ${nf(Math.abs(xq < lo ? lo - xq : xq - hi), 2)} units outside the measured range (${nf(lo, 2)} to ${nf(hi, 2)}). ${yq == null ? 'This method does not extrapolate: choose a line, power law or exponential if you want an estimate, and treat it as a hypothesis.' : 'Treat the result as a hypothesis to be checked by an experiment, not as a prediction.'}</div>`}
+       ${fit.sd != null && yq != null ? `<p class="small muted">Residual spread about the fit: ± ${nf(fit.sd, 3)} ${esc(cy.lab)}. This is the scatter of the points used to fit, not a prediction interval: it does not account for parameter uncertainty and should not be read as a confidence bound on the value above.</p>` : ''}
+       <p class="num small">${esc(fit.eq)}</p>
+       ${mixed.length ? `<div class="note"><b>Mixed conditions in this fit:</b> ${esc(mixed.join('; '))}. A slope across mixed conditions describes the collection of rows, not a single physical relationship. Use the filter to hold a condition fixed.</div>` : ''}
+       ${(censX || censY) ? `<div class="note">${censX + censY} censored ${plural(censX + censY, 'value')} (written as a bound, such as &lt; or &gt;) ${censX + censY === 1 ? 'was' : 'were'} excluded from this fit. Untick "Exclude censored values" in the toolbox to include them, which treats a bound as if it were a measurement.</div>` : ''}`; }
+  } else out = `<div class="note crit">${esc(fit.err)}</div>`;
+  const sel = (id, key, opts, v) => `<select id="${id}" data-bind="${key}">${opts.map(([k, t]) => `<option value="${esc(k)}" ${String(v) === String(k) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+  const canSaveIter = !!st.last, canSaveFind = !!st.last;
+  return `<div class="card"><h2>Simple, iterative model</h2>
+   ${ps.length ? `<div class="flex"><label for="mp">Preconfigured analysis</label><select id="mp" data-act="preset2"><option value="">Exploratory: choose variables yourself</option>${ps.map(p => `<option value="${esc(p.id)}" ${st.preset === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></div>
+     ${active ? `<div class="note info"><b>${esc(active.label)}.</b> ${esc(active.why)}</div>` : `<div class="note">Exploratory mode: no preconfigured analysis selected. A fit here describes these rows; it carries no physical interpretation of its own.</div>`}`
+    : `<div class="note">${esc(EXPLORATORY_NOTE)}</div>`}
+   <div class="flex"><label for="mx">X</label>${sel('mx', 'x', nums.map(c => [c.k, c.lab]), st.x)}<label for="my">Y</label>${sel('my', 'y', nums.map(c => [c.k, c.lab]), st.y)}<label for="mg">Filter by</label>${sel('mg', 'gcol', [['', 'no filter']].concat(cats.map(c => [c.k, c.lab])), st.gcol)}${gc ? sel('mgv', 'gval', [['', 'all']].concat(gvals.map(v => [v, v])), st.gval) : ''}</div>
+   <div class="flex"><label for="mm">Method</label>${sel('mm', 'method', METHODS, st.method)}<label for="mq">Predict at x =</label><input type="number" id="mq" data-bind="xq" data-live="pred" value="${st.xq}" step="any" style="width:100px"><button data-act="hist" ${canSaveIter ? '' : 'disabled title="Fit a model first: there is no result to save yet"'}>Save this iteration</button><button data-act="save" data-what="model" ${canSaveFind ? '' : 'disabled title="Fit a model first: there is no result to save yet"'}>Save finding</button></div>
+   <p class="small muted">Rows used: ${P.length} of ${d.rows.length} selected${gc && st.gval ? ` (filtered to ${esc(gc.lab)} = ${esc(st.gval)})` : ''}. ${st.onlyTests ? 'Individual tests only.' : 'Aggregate rows are included: their values are summaries, not single runs.'}</p></div>
+  <div class="grid2"><div class="card">${ch || ''}${legend([{c:'var(--s1)', t:'Measured test (level 1)'}, {c:'var(--g1)', t:'Fitted model (level 3)'}])}${co ? dropNote(co) : ''}</div><div class="card">${out}
+   <h3>Saved iterations</h3>${st.hist.length ? `<div class="tw" style="max-height:200px"><table><thead><tr><th>#</th><th>Y against X</th><th>Filter</th><th>Method</th><th>Fit</th><th>Validation</th><th class="num">x</th><th class="num">ŷ</th></tr></thead><tbody>${st.hist.map((h, i) => `<tr><td class="num">${i + 1}</td><td>${esc(h.y)} / ${esc(h.x)}</td><td>${esc(h.group)}</td><td>${esc(h.method)}</td><td class="num">${esc(h.metric)} (n=${h.n})</td><td class="num">${h.cv ? 'Q² ' + nf(h.cv.q2, 3) : '—'}</td><td class="num">${nf(h.xq, 2)}</td><td class="num">${h.yq == null ? '—' : nf(h.yq, 3)}${h.inside ? '' : ' *'}</td></tr>`).join('')}</tbody></table></div><p class="small muted">* extrapolated. "Fit" is measured on the rows used to fit; "Validation" is measured on groups held out of the fit.</p>` : `<p class="small muted">Change the variables, filter or method and save each attempt to compare them.</p>`}</div></div>`;
+}
+function csvOf(rows, cols){ const q = v => { const s = String(v ?? ''); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }; return [cols.map(c => q(c.lab)).join(',')].concat(rows.map(r => cols.map(c => q(c.raw ? r[c.k] : r[c.k])).join(','))).join('\n'); }
+function c2Export(b){
+  const d = c2Cols(b), st = b.st, on = d.cols.filter(c => st.cols[c.k]), ids = d.raw ? [d.inv.id] : uniq(d.rows.map(r => INV[r.inv].id));
+  return `<div class="card"><h2>Export for modelling</h2><p>${d.rows.length} rows and ${on.length} variables from ${ids.length} ${plural(ids.length, 'investigation')}. ${d.raw ? 'Original PSI table.' : 'Normalised table.'}</p>
+   <div class="flex"><button class="pri" data-act="dl" data-fmt="csv">Download CSV</button><button data-act="dl" data-fmt="json">Download JSON</button><button data-act="dl" data-fmt="cite">Citations and DOIs (.txt)</button>${st.last ? `<button data-act="dl" data-fmt="model">Fitted model (.json)</button>` : ''}</div>
+   <h3>Investigations included and how to cite them</h3><ul class="tight">${ids.map(id => { const v = byId(id); return `<li><b>${esc(v.acr)}</b> (${id}) · DOI <a href="https://doi.org/${esc(v.doi)}" target="_blank" rel="noopener">${esc(v.doi)}</a></li>`; }).join('')}</ul>
+   <p class="small muted">PSI asks that the DOI of every investigation used be cited. The PSI data are licensed CC0-1.0. The CSV keeps the provenance columns, so pressure provenance, measurement qualifiers and the signed flow values travel with the numbers.</p>
+   ${st.last ? `<h3>Last model</h3><p class="num small">${esc(st.last.y)} against ${esc(st.last.x)} · ${esc(st.last.group)} · ${esc(st.last.method)} · ${esc(st.last.eq)} · fit ${esc(st.last.metric)} · n = ${st.last.n}${st.last.cv ? ` · validation Q² = ${nf(st.last.cv.q2, 3)}` : ' · no out-of-sample validation'}</p>` : ''}</div>`;
+}
+/* ---------- C3 ---------- */
+/* Boundary model from the BASS-II report, equation 6.1. Its domain of validity
+   is PMMA rods in microgravity at about one atmosphere. It is drawn as a
+   reference curve inside that domain and is not used to classify other
+   materials or geometries (commit 9). */
+const R0 = 0.318, UB1 = 20;
+const xlim = a => 6 * Math.exp(-0.5 * a) + 0.0167 * a + 13.4;
+const stretch = (U, r) => 1.5 * (U / r) * Math.sqrt(r / R0);
+/* Buoyancy-induced flow as a function of gravity. U_b = 20·g^n is a MODELLING
+   HYPOTHESIS of the team, not a measured relationship. With g = 1 the check
+   returns the 1-g reference because 1^n = 1 for any n, so agreeing at 1 g does
+   not validate the exponent (commit 13). */
+const ub = (g, ex) => g <= 0 ? 0 : UB1 * Math.pow(g, ex);
+const GEXP_SENS = [0.25, 0.333, 0.5];
+/* Material families. A composite is kept as a composite: PMMA & Nomex must not
+   be counted as pure PMMA when the PMMA boundary is being discussed (commit 3). */
+const fam = f => { f = (f || '').toLowerCase();
+  if(!f) return 'Material not stated';
+  if(/&|\+|\bwith\b|\bto\b/.test(f) && /pmma|nomex|silicon/.test(f)) return 'Composite (two materials in one sample)';
+  return /sibal|cotton/.test(f) ? 'SIBAL fabric (cotton and fibreglass)' : /nomex/.test(f) ? 'Nomex' : /ultem/.test(f) ? 'Ultem' : /silicon/.test(f) ? 'Silicone' : /wax|candle|paraf/.test(f) ? 'Wax or paraffin' : /pmma|rod|micron|film|acryl|sphere|slab|sheet/.test(f) ? 'PMMA (acrylic)' : 'Other'; };
+/* Tests eligible to be drawn as individual solid-material points. */
+const SOL = T.filter(t => t.plot && t.st === 'solid');
+/* The subset the BASS-II boundary actually describes: PMMA rods. */
+const isPmmaRod = t => fam(t.fuel) === 'PMMA (acrylic)' && /rod|cylind/i.test(t.geom || '');
+function c3Evidence(b){
+  const st = b.st, e = envOf(b), fake = {...defaults('C1'), env:e.id, o2:e.o2, p:e.p, grav: e.g === 0 ? 'ug' : e.g === 1 ? '1g' : 'partial', pil:st.pil};
+  const L = c1List({st:fake}), X = EXT.filter(x => x.pil.includes(st.pil));
+  const intro = {prev:'Prevention controls ignition sources and selects materials by their flammability limits, which depend above all on oxygen and on air flow.',
+                 det:'Detection depends on knowing the real smoke of microgravity: particle size, ageing and transport by the ventilation.',
+                 sup:'Suppression aims to put the flame out: diluting the atmosphere with inert gases, removing heat, or cutting the oxygen supply.'}[st.pil];
+  return `<div class="card"><h2>${PIL[st.pil]}: which investigations drive next-generation controls and equipment</h2><p>${intro}</p><p>${scenarioLine(b)}</p></div>
+  <div class="grid2e"><div class="card"><div class="flex"><h3>PSI investigations</h3>${lv(1)}</div>${L.map(r => `<div class="src"><div class="flex"><b>${esc(r.v.acr)}</b><span class="muted small">${r.v.id}</span>${stPill(r.status)}<span class="sp"></span><span class="num small">evidence ${nf(r.evidenceScore, 0)} · relevance ${nf(r.missionScore, 0)}</span></div><ul class="tight">${r.v.res.slice(0, 2).map(x => `<li>${esc(x)}</li>`).join('')}</ul><a class="small" href="${psi2url(r.v.id)}" target="_blank" rel="noopener">Open in PSI</a></div>`).join('')}</div>
+   <div class="card"><div class="flex"><h3>Evidence from outside PSI</h3>${lv(2)}</div>${X.map(x => `<div class="src"><div class="flex"><b>${esc(x.title)}</b></div><span class="pill">${esc(x.kind)}</span>${x.status ? `<div class="small muted" style="margin-top:3px"><b>Status:</b> ${esc(x.status)}${x.checked ? ` · checked ${esc(x.checked)}` : ''}</div>` : ''}<p style="margin-top:4px">${esc(x.text)}</p><a class="small" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.src)}</a></div>`).join('')}</div></div>`;
+}
+function prevCalc(b){ const st = b.st, e = envOf(b), Ue = st.U + ub(e.g, st.gexp), a = stretch(Ue, st.r), lim = xlim(a);
+  return {e, Ue, a, lim, margin: e.o2 - lim, limUg: xlim(stretch(st.U, st.r)), lim1g: xlim(stretch(st.U + UB1, st.r)),
+          sens: GEXP_SENS.map(n => ({n, lim: xlim(stretch(st.U + ub(e.g, n), st.r))}))}; }
+function c3Analysis(b){
+  const st = b.st, e = envOf(b);
+  if(st.pil === 'prev'){
+    const c = prevCalc(b);
+    // Points are drawn by their recorded outcome. A test with no recorded
+    // outcome gets its own neutral marker and is counted apart, never placed in
+    // a "burns" or "goes out" zone (commit 9, option B).
+    const eligible = SOL.filter(t => QV.o2(t) && QV.flow(t));
+    const known = eligible.filter(t => t.outr), unknown = eligible.filter(t => !t.outr);
+    const burned = known.filter(t => t.ign !== 0 && t.ext !== 1).length;
+    const extinguished = known.filter(t => t.ext === 1).length;
+    const noIgn = known.filter(t => t.ign === 0).length;
+    const pts = eligible.map(t => { const o = outcomeStyle(t);
+      return {x:t.flb, y:t.o2b, c:o.c, shape:o.shape, o: t.outr ? .8 : .5,
+        t:`${INV[t.inv].acr} ${t.tid}: ${t.fuel || 'material not stated'}${isPmmaRod(t) ? ' (PMMA rod)' : ''}; ${t.out || 'outcome not recorded'}`}; });
+    XT.forEach(x => pts.push({x:x.fl, y:x.o2, hollow:true, t:`${x.name} (outside PSI): ${x.mat}, ${nf(x.o2)} % O₂, ${nf(x.p)} kPa, ${x.dir}`}));
+    pts.push({x:4, y:15.4, hollow:true, t:'1-g upward limit for a PMMA rod: 15.4 % O₂ with 4 cm/s forced flow (cited in the BASS-II report)'});
+    const nRod = eligible.filter(isPmmaRod).length;
+    const F = {}; SOL.forEach(t => { const k = fam(t.fuel), o = F[k] = F[k] || {n:0, o2:[], fl:[], b:0, x:0, ni:0, unk:0, inv:new Set()};
+      o.n++; if(t.o2b != null) o.o2.push(t.o2b); if(t.flb != null) o.fl.push(t.flb);
+      if(!t.outr) o.unk++; else if(t.ext === 1) o.x++; else if(t.ign === 0) o.ni++; else o.b++; o.inv.add(INV[t.inv].acr); });
+    const near = SOL.filter(t => t.o2b != null && Math.abs(t.o2b - e.o2) <= 5 && t.p != null && Math.abs(t.p - e.p) / e.p <= 0.30).length;
+    const co = {xr:[0, Math.max(46, st.axFl || 0)], yr:[10, Math.max(40, e.o2 + 4)], xl:'Forced air flow (cm/s)', yl:'Oxygen (% by volume)', pts,
+      lines:[{f:U => xlim(stretch(U, st.r)), c:'var(--s1)'}, {f:U => xlim(stretch(U + ub(e.g, st.gexp), st.r)), c:'var(--g1)', dash:1}],
+      hlines:[{y:21, label:'Air 21 %'}, {y:e.o2, label:e.name + ' ' + nf(e.o2) + ' %', c:'var(--crit)'}],
+      marks:[{x:st.U, y:c.lim, label:'PMMA-rod limit ' + nf(c.lim) + ' %'}], title:'Solid-material tests and the PMMA-rod boundary'};
+    const svg = chart(co);
+    const s2 = T.filter(t => t.plot && INV[t.inv].id === 'PSI-99' && t.bl1g != null);
+    return `<div class="grid2"><div class="card"><h2>Solid-material tests and the PMMA-rod boundary</h2>
+      ${svg}
+      ${legend(OUTLEG.concat([{h:1, t:'Measured test outside PSI (level 2)'}]))}
+      ${dropNote(co)}
+      <div class="note"><b>The curve is a reference for PMMA rods, not a classifier.</b> <span style="color:var(--s1)">━</span> is the BASS-II boundary for a PMMA rod in microgravity (equation 6.1 of the report); <span style="color:var(--g1)">╌</span> is the same boundary at ${nf(e.g, 3)} g with buoyancy added ${lv(3)}. The ${eligible.length} points come from different materials, geometries and conditions, so the curve does not separate them into burning and non-burning. Only ${nRod} of the plotted tests are PMMA rods, which is the case the equation describes.${e.g > 0 && e.g < 1 ? ` The dashed curve rests on the hypothesis U_b = 20·g^n with n = ${nf(st.gexp, 3)}; agreeing at 1 g cannot validate n, because 1^n = 1 for every n. See the assumptions below.` : ''}</div>
+      <p class="small muted">Points shown: ${eligible.length} individual solid-material tests with both oxygen and a valid flow. Of these, ${burned} burned or ignited, ${extinguished} were extinguished, ${noIgn} did not ignite and <b>${unknown.length} have no outcome recorded</b> in the source table and are drawn as grey diamonds. Excluded: ${SOL.length - eligible.length} solid tests without both variables, and all aggregate rows, notes and visualisations.</p></div>
+     <div class="card"><h3>PMMA-rod limit for ${esc(e.name)}</h3>
+      <div class="tiles"><div class="tile"><div class="small muted">Estimated limiting O₂</div><div class="big num">${nf(c.lim)} %</div><div class="small muted">at ${nf(e.g, 3)} g and ${nf(st.U, 0)} cm/s, rod radius ${nf(st.r, 3)} cm</div></div>
+       <div class="tile"><div class="small muted">Habitat oxygen</div><div class="big num">${nf(e.o2)} %</div><div class="small muted">O₂ partial pressure ${nf(pO2(e.o2, e.p), 1)} kPa</div></div></div>
+      <div class="note ${c.margin > 0 ? 'crit' : 'ok'}">${lv(4)} <b>Under the model's assumptions</b>, the evaluated condition lies ${c.margin > 0 ? `${nf(Math.abs(c.margin))} points above` : `${nf(Math.abs(c.margin))} points below`} the estimated boundary for a PMMA rod, that is, in the region the model estimates as ${c.margin > 0 ? 'flame propagation' : 'no sustained propagation'}. This is an extrapolation: it requires experimental validation at comparable gravity, pressure and geometry, and it speaks only for a PMMA rod of this radius, not for the habitat's materials in general.</div>
+      <table><tbody><tr><td>Microgravity (measured regime) ${lv(1)}</td><td class="num">${nf(c.limUg)} %</td></tr><tr><td>${nf(e.g, 3)} g (calculated) ${lv(3)}</td><td class="num">${nf(c.lim)} %</td></tr><tr><td>1 g with the same model</td><td class="num">${nf(c.lim1g)} %</td></tr><tr><td>1 g measured (upward, 4 cm/s; BASS-II report) ${lv(2)}</td><td class="num">15.4 %</td></tr></tbody></table>
+      <details><summary class="small">Assumptions behind these numbers, and a sensitivity check</summary>
+       <p class="small">Effective flow = ventilation + buoyancy = ${nf(st.U, 0)} + ${nf(ub(e.g, st.gexp))} = ${nf(c.Ue)} cm/s; stretch rate a = ${nf(c.a)} s⁻¹.</p>
+       <p class="small"><b>U_b = 20·g^n is a modelling hypothesis</b>, with n = ${nf(st.gexp, 3)} chosen by the team. Checking it at g = 1 cannot validate n, because 1^n = 1 for every n: that check only confirms the 1-g reference point. The model at 1 g with 4 cm/s gives ${nf(xlim(stretch(24, R0)))} % against 15.4 % measured.</p>
+       <table><thead><tr><th>Exponent n</th><th class="num">Limiting O₂ at ${nf(e.g, 3)} g</th><th>Conclusion for ${nf(e.o2)} % O₂</th></tr></thead><tbody>${c.sens.map(s => `<tr><td class="num">${nf(s.n, 3)}${Math.abs(s.n - st.gexp) < 1e-6 ? ' (selected)' : ''}</td><td class="num">${nf(s.lim)} %</td><td>${e.o2 > s.lim ? 'above the boundary' : 'below the boundary'}</td></tr>`).join('')}</tbody></table>
+       <p class="small">${uniq(c.sens.map(s => e.o2 > s.lim)).length > 1 ? '<b>The conclusion changes with the exponent</b>, so it is driven by the assumption rather than by the data.' : 'The conclusion is the same across these exponents, so it is not sensitive to that assumption over this range. It remains an extrapolation in oxygen and pressure.'}</p></details>
+      <div class="note ${near ? 'ok' : 'crit'}">${near ? `There are ${near} PSI solid-material tests near this atmosphere, which can serve as direct references.` : `PSI has no solid-material tests near ${nf(e.o2)} % O₂ and ${nf(e.p)} kPa: the figure above is an extrapolation in both oxygen and pressure from an equation calibrated with PMMA rods at about 1 atm. Outside PSI, Saffire VI burned SIBAL fabric and PMMA between 28.8 and 31 % O₂ at 54 to 55 kPa.`}</div>
+      <button data-act="save" data-what="prev">Save finding</button></div></div>
+     <div class="card"><div class="flex"><h3>Solid materials tested in PSI</h3>${lv(1)}</div><div class="tw"><table><thead><tr><th>Material family</th><th class="num">Tests</th><th class="num">O₂ tested (%)</th><th class="num">Flow (cm/s)</th><th class="num">Burned</th><th class="num">Extinguished</th><th class="num">No ignition</th><th class="num">No outcome recorded</th><th>Investigations</th></tr></thead><tbody>${Object.entries(F).sort((a, b) => b[1].n - a[1].n).map(([k, o]) => `<tr><td>${esc(k)}</td><td class="num">${o.n}</td><td class="num">${o.o2.length ? rngTxt([Math.min(...o.o2), Math.max(...o.o2)]) : '—'}</td><td class="num">${o.fl.length ? rngTxt([Math.min(...o.fl), Math.max(...o.fl)]) : '—'}</td><td class="num">${o.b}</td><td class="num">${o.x}</td><td class="num">${o.ni}</td><td class="num">${o.unk}</td><td class="small">${[...o.inv].join(', ')}</td></tr>`).join('')}</tbody></table></div><p class="small muted">Counts are over individual tests only. A sample made of two materials is kept in its own composite family rather than counted as either one. The last column is tests whose source table records no outcome, so they support no conclusion about burning.</p></div>
+     <div class="card"><div class="flex"><h3>Microgravity against 1 g for the same material (Saffire-II)</h3>${lv(1)}</div><div class="tw"><table><thead><tr><th>Sample</th><th>Material</th><th class="num">Thickness (mm)</th><th>Flow</th><th class="num">Burned in µg (cm)</th><th class="num">Burned in 1 g (cm)</th></tr></thead><tbody>${s2.map(t => `<tr><td class="num">${esc(t.tid)}</td><td>${esc(t.fuel || '—')}${t.matinh ? ` <span class="pill" title="Inherited from row ${esc(t.matsrc)}">inherited</span>` : ''}</td><td class="num">${nf(t.thk, 2)}</td><td>${esc(t.dir)}, ${nf(t.flb, 0)} cm/s</td><td class="num">${nf(t.blug)}</td><td class="num">${t.bl1g >= 29 ? '29 (complete)' : nf(t.bl1g)}</td></tr>`).join('')}</tbody></table></div><p class="small muted">The one investigation here that measured the same samples at both gravity levels, which is what makes this comparison legitimate. Nine samples: a comparison, not a validated model.</p></div>`;
+  }
+  if(st.pil === 'det'){
+    const R = T.filter(t => t.plot && t.st === 'smoke'), G = {};
+    R.forEach(t => { const k = t.fuel || '—', o = G[k] = G[k] || {n:0, fl:[], inv:new Set()}; o.n++; if(t.flb != null) o.fl.push(t.flb); o.inv.add(INV[t.inv].acr); });
+    return `<div class="grid2e"><div class="card"><div class="flex"><h2>Smoke measured in microgravity</h2>${lv(1)}</div><p>SAME and SAME-R heated spacecraft materials without flame and measured the smoke with several instruments at once. The table summarises their ${R.length} individual tests.</p><div class="tw"><table><thead><tr><th>Material</th><th class="num">Tests</th><th class="num">Air flow (cm/s)</th><th>Investigation</th></tr></thead><tbody>${Object.entries(G).sort((a, b) => b[1].n - a[1].n).map(([k, o]) => `<tr><td>${esc(k)}</td><td class="num">${o.n}</td><td class="num">${o.fl.length ? rngTxt([Math.min(...o.fl), Math.max(...o.fl)]) : '—'}</td><td>${[...o.inv].join(', ')}</td></tr>`).join('')}</tbody></table></div><p class="small muted">The PSI tables record material, flow, duration and ageing time. Particle sizes are in the final reports and in the raw data, not in these tables.</p></div>
+     <div class="card"><div class="flex"><h3>Experimental evidence for detection systems</h3>${lv(2)}</div>
+      <p class="small">What follows is the response of <b>two specific detector units under the conditions SAME tested</b>: the Shuttle ionisation detector and the ISS photoelectric detector, with smoke generated from five materials by heating without flame. It is not a general evaluation of commercial detectors, and it does not rank detector technologies in the abstract.</p>
+      <div class="tw" style="max-height:none"><table><thead><tr><th></th><th>Ionisation (Shuttle unit)</th><th>Photoelectric (ISS unit)</th></tr></thead><tbody><tr><th>Principle</th><td>Ion current; a separator rejects particles above about 1 to 2 µm</td><td>Forward scattering of near-infrared light</td></tr><tr><th>More sensitive to</th><td>Small particles</td><td>Particles above roughly 1 µm</td></tr><tr><th>Cellulose, silicone, Pyrell (large-particle smoke)</th><td>—</td><td>Detected readily</td></tr><tr><th>Teflon and Kapton (small particles, typical of electronics)</th><td>Only somewhat better with Teflon</td><td>Failed frequently</td></tr></tbody></table></div>
+      <p class="small">Sources: <a href="https://ntrs.nasa.gov/api/citations/20220009167/downloads/DRI%20Talk%20v2.pdf" target="_blank" rel="noopener">NASA NTRS 20220009167</a> and <a href="https://www.nist.gov/node/1335761" target="_blank" rel="noopener">NIST, SAME results</a>. Each row above is the reported response of those units to that smoke, not a specification.</p>
+      <h4>Variables that govern the result</h4>
+      <ul class="tight"><li>Particle size and number concentration of the smoke, which depend on the material and the heating temperature.</li><li>Ageing time: particles grow between release and arrival at the detector.</li><li>Ventilation flow: in microgravity smoke does not rise, so it reaches the detector only if the flow carries it.</li><li>Sensor response characteristic, which differs between the two principles above.</li></ul>
+      <ul class="tight"><li>DAFT tested the same particle counter with dust: a basis for telling smoke from lunar or Martian dust.</li></ul><button data-act="save" data-what="det">Save finding</button></div></div>`;
+  }
+  // ---- suppression ----
+  const fuelsAvail = uniq(T.filter(t => t.plot && INV[t.inv].id === 'PSI-69' && t.fuel).map(t => t.fuel)).sort();
+  let FX = T.filter(t => t.plot && INV[t.inv].id === 'PSI-69' && t.fuel === st.fuelSup);
+  const pAll = FX.map(t => t.p).filter(v => v != null);
+  const pBands = [['all', 'all pressures'], ['lo', 'below 101 kPa'], ['hi', '101 kPa and above']];
+  if(st.supPFilter === 'lo') FX = FX.filter(t => t.p != null && t.p < 101);
+  if(st.supPFilter === 'hi') FX = FX.filter(t => t.p != null && t.p >= 101);
+  const cls = t => t.co2 > 0 ? 'With CO₂' : t.he > 0 ? 'With helium' : 'N₂ only', CL = {'N₂ only':'var(--mute)', 'With CO₂':'var(--s1)', 'With helium':'var(--s2)'};
+  const G = {}; FX.forEach(t => { const o = G[cls(t)] = G[cls(t)] || {n:0, ext:0, comp:0, dis:0, d:[], o2:[], p:[]};
+    o.n++; if(t.outr === 'extinction') o.ext++; else if(t.outr === 'completion') o.comp++; else o.dis++;
+    if(t.dext != null) o.d.push(t.dext); if(t.o2b != null) o.o2.push(t.o2b); if(t.p != null) o.p.push(t.p); });
+  // Every figure in this section is computed from the filtered rows. Nothing is
+  // typed in by hand (commit 13).
+  const Q = T.filter(t => t.plot && t.outr === 'flow reduced to extinction');
+  const q2 = Q.map(t => t.o2b).filter(v => v != null), qf = Q.map(t => t.fla).filter(v => v != null);
+  const qMax = q2.length ? Math.max(...q2) : null;
+  const co2 = {xr:[10, 36], yr:[0, Math.max(5, ...FX.map(t => t.dext || 0)) + 0.3], xl:'Oxygen (% by volume)', yl:'Droplet diameter at extinction (mm)',
+    pts: FX.filter(t => t.dext != null).map(t => ({x:t.o2b, y:t.dext, c:CL[cls(t)], t:`${t.tid}: ${nf(t.o2b)} % O₂, CO₂ ${nf(t.co2)} %, He ${nf(t.he)} %, ${nf(t.p)} kPa; ${t.out}`})),
+    vlines:[{x:e.o2, label:e.name}], title:'Droplet extinction'};
+  const svg2 = chart(co2);
+  return `<div class="grid2"><div class="card"><div class="flex"><h2>FLEX: ${esc(st.fuelSup.toLowerCase())} droplets with diluents</h2>${lv(1)}</div>
+    <div class="flex small"><label for="supP">Pressure band</label><select id="supP" data-bind="supPFilter">${pBands.map(([k, t]) => `<option value="${k}" ${st.supPFilter === k ? 'selected' : ''}>${t}</option>`).join('')}</select><span class="muted">${FX.length} of ${T.filter(t => t.plot && INV[t.inv].id === 'PSI-69' && t.fuel === st.fuelSup).length} tests${pAll.length ? ` · available range ${nf(Math.min(...pAll))} to ${nf(Math.max(...pAll))} kPa` : ''}</span></div>
+    ${svg2}${legend(Object.entries(CL).map(([t, c]) => ({c, t})))}${dropNote(co2)}
+    <p class="small">A larger extinction diameter means the flame went out earlier, with more fuel left unburned: the atmosphere suppressed it more effectively. ${fuelsAvail.length > 1 ? `Fuel is selected in the toolbox; ${esc(fuelsAvail.join(' and '))} are not interchangeable and are never pooled here.` : ''}</p>
+    <div class="note">Mixing pressures changes what this chart means: droplet extinction depends on pressure as well as on oxygen. Use the pressure band above to hold it roughly fixed before reading a trend.</div></div>
+   <div class="card"><h3>Outcome by diluent</h3><div class="tw" style="max-height:none"><table><thead><tr><th>Atmosphere</th><th class="num">Tests</th><th class="num">O₂ (%)</th><th class="num">Pressure (kPa)</th><th class="num">Flame extinguished</th><th class="num">Burned to completion</th><th class="num">Disruption</th><th class="num">Mean extinction diameter (mm)</th></tr></thead><tbody>${Object.entries(G).map(([k, o]) => `<tr><td>${esc(k)}</td><td class="num">${o.n}</td><td class="num">${o.o2.length ? rngTxt([Math.min(...o.o2), Math.max(...o.o2)]) : '—'}</td><td class="num">${o.p.length ? rngTxt([Math.min(...o.p), Math.max(...o.p)]) : '—'}</td><td class="num">${o.ext} (${nf(o.ext / o.n * 100, 0)} %)</td><td class="num">${o.comp}</td><td class="num">${o.dis}</td><td class="num">${o.d.length ? nf(mean(o.d), 2) : '—'}</td></tr>`).join('') || '<tr><td colspan="8">No tests in this pressure band.</td></tr>'}</tbody></table></div>
+    <p class="small muted">A change in extinction diameter under one diluent does not imply a universal improvement: it holds for this fuel, these pressures and droplet geometry, and says nothing about solid materials.</p>
+    <div class="flex"><h3>Cutting the ventilation</h3>${lv(1)}</div>
+    <ul class="tight"><li>BASS-II extinguished the flame by reducing the flow in <b>${Q.length}</b> solid-material tests, with oxygen from ${nf(Math.min(...q2))} to <b>${nf(qMax)} %</b> and a final flow of ${nf(Math.min(...qf))} to ${nf(Math.max(...qf))} cm/s. Computed from the rows now selected, so it tracks the filters rather than being fixed in the text.</li>
+     <li>ACME BRE observed the opposite at elevated oxygen: the flame kept burning with no air flow, whereas at 21 % it self-extinguished. These are gas-burner emulations of solids, not solid samples.</li>
+     <li>${e.g > 0 ? `At ${nf(e.g, 3)} g, buoyancy sustains a flow of about ${nf(ub(e.g, st.gexp))} cm/s even with the fan off ${lv(4)}, under the U_b = 20·g^n hypothesis with n = ${nf(st.gexp, 3)}. Cutting ventilation therefore cannot be assumed sufficient in partial gravity.` : 'In microgravity there is no buoyancy: with the fan off, oxygen reaches the flame only by diffusion.'}</li>
+     <li>Flow-reduction extinction of a solid and droplet extinction with a diluent are different phenomena measured in different experiments; they are reported separately above and should not be combined into one suppression claim.</li></ul>
+    <button data-act="save" data-what="sup">Save finding</button></div></div>`;
+}
+/* Evidence-compatibility states used by the drafts (commit 13): the binary
+   "in range / out of range" is replaced by four states, so a missing variable
+   is never reported as a mismatch of conditions. */
+function evidenceState(e, kinds){
+  const rows = T.filter(t => t.plot && kinds.includes(t.st));
+  const withBoth = rows.filter(t => QV.o2(t) && QV.pressure(t));
+  const o2Close = t => Math.abs(t.o2b - e.o2) <= 5;
+  const pClose = t => Math.abs(t.p - e.p) / e.p <= 0.30;
+  const full = withBoth.filter(t => o2Close(t) && pClose(t));
+  if(full.length) return {state:'match', n:full.length, rows:full};
+  const partial = withBoth.filter(t => o2Close(t) || pClose(t));
+  if(partial.length) return {state:'partial', n:partial.length, rows:partial};
+  if(rows.length) return {state:'related', n:rows.length, rows};
+  return {state:'none', n:0, rows:[]};
+}
+function outputs(b){
+  const st = b.st, e = envOf(b), c = prevCalc(b);
+  const solid = T.filter(t => t.plot && t.st === 'solid');
+  const maxSol = Math.max(...solid.filter(t => t.o2b != null).map(t => t.o2b));
+  const ev = evidenceState(e, ['solid']);
+  const near = ev.state === 'match' ? ev.n : 0;
+  const xn = XT.filter(x => Math.abs(x.o2 - e.o2) <= 5 && Math.abs(x.p - e.p) / e.p <= 0.30);
+  const gl = T.filter(t => t.plot && (t.st === 'gas' || t.st === 'liquid') && t.o2b != null && Math.abs(t.o2b - e.o2) <= 5 && t.p != null && Math.abs(t.p - e.p) / e.p <= 0.30).length;
+  const Q = T.filter(t => t.plot && t.outr === 'flow reduced to extinction');
+  const qO2 = Q.map(t => t.o2b).filter(v => v != null), qMax = qO2.length ? Math.max(...qO2) : null;
+  const hiO2 = e.o2 >= 26;
+  const fx = T.filter(t => t.plot && INV[t.inv].id === 'PSI-69');
+  const fxO2 = fx.map(t => t.o2b).filter(v => v != null), fxP = fx.map(t => t.p).filter(v => v != null);
+  const P = [], D2 = [], Su = [], Gp = [];
+  P.push([[1, 2], `Design atmosphere: ${nf(e.o2)} % O₂ at ${nf(e.p)} kPa, an oxygen partial pressure of ${nf(pO2(e.o2, e.p), 1)} kPa. Evidence compatibility for solid materials: ${CSTATE[ev.state][1].toLowerCase()} (${ev.n} ${plural(ev.n, 'test')}; highest oxygen tested with solids in PSI is ${nf(maxSol)} %)${xn.length ? `; outside PSI there ${xn.length === 1 ? 'is 1 test' : 'are ' + xn.length + ' tests'}: ${xn.map(x => x.name).join(', ')}` : ''}. ${ev.state === 'match' ? 'Use those tests as references when qualifying materials.' : 'Qualify each material with its own tests in this atmosphere before accepting it; the available tests do not cover these conditions.'}`]);
+  P.push([[3, 4], `Reference material, PMMA rod of ${nf(st.r, 3)} cm radius: estimated limiting O₂ of ${nf(c.lim)} % with ${nf(st.U, 0)} cm/s ventilation at ${nf(e.g, 3)} g. Under the model's assumptions the habitat condition lies ${c.margin > 0 ? `${nf(Math.abs(c.margin))} points above` : `${nf(Math.abs(c.margin))} points below`} that boundary. This is an extrapolation from an equation calibrated on PMMA rods at about 1 atm and requires experimental validation; it does not transfer to other materials or geometries.`]);
+  P.push([[1], `Do not accept a material on the strength of a 1-g test alone. In BASS-II a flame spread in microgravity at 17.5 % O₂ while in 1 g it did not spread below 19 %. In Saffire-II the opposite happened with silicone: it did not burn in microgravity and did burn in 1 g. The direction of the difference depends on the material and the flow, which is why neither gravity level bounds the other.`]);
+  if(e.g > 0 && e.g < 1) P.push([[2, 4], `Partial gravity: NASA's modelling for FM², supported by parabolic flights and ISS tests, suggests some materials burn at lower oxygen in lunar gravity than on Earth, and SIBAL fabric has been found to burn only downward in air in lunar gravity. FM² is planned, not flown, so no surface measurements exist yet. Until they do, apply to each material the lower of its microgravity and 1-g limits.`]);
+  D2.push([[2], `Combine two detection principles (ionisation and light scattering), or pair a particle counter with size measurement. With the real microgravity smoke of SAME, the ISS photoelectric unit failed frequently on Teflon and Kapton. That result applies to the units and smoke SAME tested, not to detector technologies in general.`]);
+  D2.push([[2, e.g > 0 ? 4 : 2], e.g > 0 ? `Detector placement: in microgravity smoke travels only with the ventilation. In partial gravity a plume would rise slowly, so covering both the ventilation returns and the upper part of the module is prudent. The partial-gravity half of this is a hypothesis: there are no smoke measurements in partial gravity.` : `Place detectors in the path of the ventilation flow: in microgravity smoke does not rise to the ceiling.`]);
+  D2.push([[1], `Plan for dust: DAFT showed the same instrument measures both smoke and dust. On the Moon and Mars dust may cause false alarms, so the detector needs to separate them by particle size.`]);
+  D2.push([[2], `Add combustion-product monitoring (CO, CO₂) and post-fire air cleanup, as demonstrated on Saffire IV to VI.`]);
+  Su.push([[1], `Cutting the ventilation as a first step ${hiO2 ? 'cannot be assumed sufficient in this atmosphere' : 'has measured support in this atmosphere'}: BASS-II extinguished flames by reducing flow in ${Q.length} solid-material tests with oxygen up to ${nf(qMax)} %, but ACME BRE saw flames persist with no flow at elevated oxygen. The BASS-II tests reach only ${nf(qMax)} % O₂, below this habitat's ${nf(e.o2)} %, so they do not cover the design condition.`]);
+  if(e.g > 0) Su.push([[4], `At ${nf(e.g, 3)} g, buoyancy would sustain a flow of about ${nf(ub(e.g, st.gexp))} cm/s with the fan off, under the U_b = 20·g^n hypothesis (n = ${nf(st.gexp, 3)}, an assumption, not a measurement). On that basis, cutting ventilation should be complemented by a suppressant agent rather than relied on alone.`]);
+  Su.push([[1], `Gaseous agent: FLEX measured droplet extinction with CO₂ and helium across ${fxO2.length ? nf(Math.min(...fxO2)) + ' to ' + nf(Math.max(...fxO2)) + ' % O₂' : 'its oxygen range'} and ${fxP.length ? nf(Math.min(...fxP)) + ' to ' + nf(Math.max(...fxP)) + ' kPa' : 'its pressure range'}${gl ? `; ${gl} gas and liquid tests fall in this atmosphere` : ''}. These are liquid droplets: use them to size diluent concentration, not as evidence about solids.`]);
+  Su.push([[2], `Portable agent: fine water mist is preferred. On the ISS it replaced CO₂ because the emergency filter respirator does not remove CO₂. The mist extinguishes mainly by removing heat, so qualifying it must evaluate geometry and heat transfer.`]);
+  if(ev.state !== 'match') Gp.push(`Solids at ${nf(e.o2)} % O₂ and ${nf(e.p)} kPa: evidence compatibility is ${CSTATE[ev.state][1].toLowerCase()}. ${xn.length ? 'Only the Saffire VI tests outside PSI come close.' : 'No test, in PSI or outside it, covers these conditions.'} SoFIE, operating on the ISS since January 2023 with oxygen up to 85 %, is expected to close part of this gap; its NCA and SMuRF investigations have not run yet.`);
+  if(e.g > 0 && e.g < 1) Gp.push(`Partial gravity: no data in PSI. LUCI burned two samples in simulated lunar gravity in February 2025 in air at normal pressure. FM² is planned, targeting a launch in late 2026 on a robotic CLPS lander, and would be the first measurement on the lunar surface.`);
+  Gp.push(`Detection: no smoke data in partial gravity, and none in exploration atmospheres.`);
+  Gp.push(`Suppression: FLEX used liquid droplets; the effectiveness of agents on solid materials in exploration atmospheres has not been measured.`);
+  return {e, c, P, D2, Su, Gp, ev};
+}
+const lvs = a => uniq(a).map(lv).join(' ');
+function c3Outputs(b){
+  const o = outputs(b), sec = (t, L) => `<div class="card"><h3>${t}</h3><ol class="tight">${L.map(([l, s]) => `<li>${esc(s)}<div style="margin-top:3px">${lvs(l)}</div></li>`).join('')}</ol></div>`;
+  return `<div class="card"><div class="flex"><h2>Actionable drafts for ${esc(o.e.name)}</h2><span class="sp"></span><button data-act="save" data-what="out">Save to the notebook</button><button data-act="dl" data-fmt="proto">Download draft (.md)</button></div>
+   <p>${scenarioLine(b)}</p>
+   <p>A draft generated from the data and the cited evidence, to inform a protocol, a suppression system and a materials assessment. Every point carries its evidence level, and every statement says whether it comes from a measured test, a calculation or a hypothesis. It does not replace certification to NASA-STD-6001.</p>
+   <div class="note"><b>Evidence compatibility for this scenario: ${CSTATE[o.ev.state][1]}.</b> ${esc(CSTATE[o.ev.state][2])} ${o.ev.n ? `${o.ev.n} solid-material ${plural(o.ev.n, 'test')} contribute.` : ''}</div></div>
+  <div class="grid3">${sec('Protocol and materials (prevention)', o.P)}${sec('Detection system', o.D2)}${sec('Suppression system', o.Su)}</div>
+  <div class="grid2e"><div class="card"><h3>Data gaps and the experiment that would close them</h3><ul class="tight">${o.Gp.map(s => `<li>${esc(s)}</li>`).join('')}</ul></div>
+   <div class="card"><h3>Applications on Earth</h3><ul class="tight"><li>Fine water mist extinguishers for enclosed spaces with people and electronic equipment.</li><li>Detectors that tell smoke from dust, useful in mining and industry.</li><li>Firefighters' air tanks and clothing derived from spacesuit technology.</li><li>Safety in enclosed or oxygen-enriched environments: submarines, aircraft, hospitals.</li></ul><a class="small" href="https://spinoff.nasa.gov/node/9407" target="_blank" rel="noopener">NASA Spinoff</a></div></div>`;
+}
+function protoMd(b){
+  const o = outputs(b), f = L => L.map(([l, s], i) => `${i + 1}. ${s} [level ${uniq(l).join(', ')}]`).join('\n');
+  return `# Actionable drafts: ${o.e.name}\n\nAtmosphere: ${nf(o.e.o2)} % O2, ${nf(o.e.p)} kPa (O2 partial pressure ${nf(pO2(o.e.o2, o.e.p), 1)} kPa), ${nf(o.e.g, 3)} g.\nEvidence compatibility for solid materials: ${CSTATE[o.ev.state][1]} (${o.ev.n} tests).\nGenerated with FlameBench (data built ${D.built}; external claims checked ${D.checked || D.built}).\n\nFlameBench is an exploration tool. It does not certify materials and does not predict in general what will burn on the Moon or Mars.\n\n## Protocol and materials\n${f(o.P)}\n\n## Detection\n${f(o.D2)}\n\n## Suppression\n${f(o.Su)}\n\n## Data gaps\n${o.Gp.map(s => '- ' + s).join('\n')}\n\nEvidence levels: 1 official PSI; 2 other measured test; 3 calculated; 4 hypothesis.\n`;
+}
+/* ---------- assistant ---------- */
+/* Query expansion for an English interface: each key maps to related terms that
+   appear in the PSI report text, so a plain question reaches the right passages. */
+const SYN = {oxygen:'o2 oxygen concentration', flame:'flames flame', smoke:'smoke aerosol particulate', extinction:'extinguish extinguished quench blowoff',
+ extinguish:'extinction extinguished quench', quench:'quenching extinction radiative', pressure:'pressure kpa atm pressures', gravity:'gravitational buoyancy microgravity',
+ fabric:'sibal cotton fiberglass cloth', flow:'velocity airflow coflow ventilation', ventilation:'flow velocity fan duct', detector:'detection detectors ionization photoelectric',
+ detection:'detector detectors smoke alarm', suppression:'suppressant extinguish diluent agent', suppressant:'suppression diluent inert', flammability:'flammable flammability limits limiting',
+ droplet:'droplets drop combustion', limit:'limits limiting boundary', material:'materials sample fuel', materials:'material samples fuels', lunar:'moon lunar partial',
+ moon:'lunar moon partial', mars:'martian mars', particle:'particles size diameter aerosol', teflon:'teflon ptfe', soot:'sooting smoke point', spread:'propagation spreading rate',
+ ignition:'ignite ignited igniter', burning:'burn burned combustion', water:'mist fine water', mist:'water mist fine', spacesuit:'suit eva', test:'tests experiment',
+ fire:'fire combustion', cool:'cool flames low temperature', co2:'carbon dioxide co2 diluent', helium:'he helium diluent', nitrogen:'n2 nitrogen diluent',
+ dust:'dust particulate daft', rod:'rods cylinder pmma', sphere:'spheres spherical', pmma:'acrylic pmma polymethyl', acrylic:'pmma acrylic', silicone:'silicone rubber',
+ nomex:'nomex aramid', validate:'validation validated verify', model:'modeling models prediction', prediction:'predict predicted extrapolation'};
+const STOP = new Set('the of and to in is for on with at by an be this that are was were from as it or a i what which how why when where does do did can could would should there their they them has have had been being not no yes about into over under more most some any all if then than so such but also between within during each other'.split(' '));
+const tokRaw = s => (String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').match(/[a-z0-9]+/g) || []).filter(w => w.length > 1 && !STOP.has(w));
+const stem = w => w.length > 5 ? w.slice(0, 5) : w;
+const tok = s => tokRaw(s).map(stem);
+const qtok = q => uniq(tokRaw(q).flatMap(w => [w].concat((SYN[w] || '').split(' ').filter(Boolean))).map(stem));
+let KB = null, IDF = null;
+function buildKB(){
+  KB = [];
+  INV.forEach(v => KB.push({w:1.35, title:`${v.acr} (${v.id})`, text:[v.sum, v.res.join(' '), 'Fuel: ' + v.fuels, 'Samples: ' + v.samples, 'Variables: ' + v.varied, v.obj].join(' '), url:psi2url(v.id), lvl:1, src:v.src}));
+  EXT.forEach(x => KB.push({w:1.35, title:x.title, text:[x.text, x.status ? 'Status: ' + x.status : ''].join(' '), url:x.url, lvl:2, src:x.src}));
+  D.passages.forEach(p => KB.push({title:`${p[1]} · ${INV[p[0]].acr}`, text:p[2], url:psi2url(INV[p[0]].id), lvl:1, src:p[1] + ' (report held in PSI)'}));
+  const df = {}; KB.forEach(d => { d.tf = {}; tok(d.title + ' ' + d.title + ' ' + d.text).forEach(w => d.tf[w] = (d.tf[w] || 0) + 1); Object.keys(d.tf).forEach(w => df[w] = (df[w] || 0) + 1); });
+  IDF = w => Math.log(1 + KB.length / (1 + (df[w] || 0)));
+}
+function retrieve(q, k = 5){
+  if(!KB) buildKB(); const ws = qtok(q);
+  return KB.map(d => ({d, s: (d.w || 1) * ws.reduce((t, w) => t + Math.min(3, d.tf[w] || 0) * IDF(w), 0) / Math.sqrt(40 + Object.keys(d.tf).length)})).filter(x => x.s > 0.08).sort((a, b) => b.s - a.s).slice(0, k).map(x => x.d);
+}
+function snippet(d, q){ const ws = qtok(q), ss = d.text.split(/(?<=[.!?])\s+/); let best = 0, bi = 0; ss.forEach((s, i) => { const t = tok(s), n = ws.filter(w => t.includes(w)).length; if(n > best){ best = n; bi = i; } }); return ss.slice(bi, bi + 2).join(' ').slice(0, 420); }
+/* Fixed evaluation set (commit 17). These are the questions the assistant is
+   checked against, so a retrieval regression is visible rather than anecdotal. */
+const AI_EVAL = ['What is lunar dust?', 'Which investigations study combustion in microgravity?',
+  'What evidence is there on suppression by droplets?', 'What is known about smoke detection?',
+  'What data exist on solids at high oxygen concentrations?',
+  'What is the difference between a measured result, a calculation and an extrapolation?',
+  'Which extinguishing system is supported by evidence, and under what conditions?'];
+function renderAi(){
+  $('#ai').innerHTML = `<div class="flex"><h4>Assistant</h4><span class="sp"></span><span class="pill ${SAMPLE ? 'in' : ''}" id="aiBadge">${SAMPLE ? 'Generative AI active' : 'Retrieval mode'}</span></div>
+   <p class="small muted">Answers from the summaries of the ${INV.length} investigations, the external evidence and ${D.passages.length} passages from PSI reports. It always shows its sources, and says so when the sources do not cover the question.</p>
+   <form id="aiForm" class="flex"><input type="text" id="aiQ" placeholder="Type your question" style="flex:1;min-width:0" aria-label="Question"><button class="pri" type="submit">Ask</button></form>
+   <div class="chips">${AI_EVAL.slice(0, 5).map(q => `<button data-act="aiq" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
+   <div id="aiOut"><p class="small muted">Answers appear here.</p></div>`;
+}
+async function ask(q){
+  const out = $('#aiOut'); if(!q.trim()) return; const docs = retrieve(q, 6);
+  const srcs = docs.map((d, i) => `<div class="src"><b>[${i + 1}] ${esc(d.title)}</b> ${lv(d.lvl)}<p>${esc(snippet(d, q))}…</p><a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.src)}</a></div>`).join('');
+  const scope = /rocket|propellant|propulsion|thruster/i.test(q) ? `<div class="note">Rockets and propellants are outside the scope of the PSI data, as the challenge statement sets it.</div>` : '';
+  if(!docs.length){ out.innerHTML = `<p><b>${esc(q)}</b></p>${scope}<div class="note"><b>Not enough information in the loaded sources.</b> I found no passage that addresses this. Try different terms, or consult PSI directly. I will not answer from outside the sources listed here.</div>`; return; }
+  out.innerHTML = `<p><b>${esc(q)}</b></p>${scope}<div id="aiAns">${SAMPLE ? '<p class="muted">Writing…</p>' : '<p class="small muted">No generative AI connection in this view: the most relevant passages are shown below.</p>'}</div><h4>Sources</h4>${srcs}`;
+  if(!SAMPLE) return;
+  try{
+    const ctx = docs.map((d, i) => `[${i + 1}] ${d.title} (evidence level ${d.lvl}): ${d.text.slice(0, 900)}`).join('\n\n');
+    const r = await SAMPLE(`You are the assistant of a fire-safety dashboard for space habitats. Answer in English, in 4 to 7 clear sentences, using ONLY the information in the context. Cite sources as [n]. If the context does not contain enough to answer, say so plainly and do not fill the gap: abstaining is the correct answer when the sources are silent. Never invent figures. Distinguish a measured result from a calculation and from an extrapolation. Do not give a definitive recommendation about the best extinguisher or the best detector unless the context supports that comparison. Rockets and propellants are out of scope.\n\nContext:\n${ctx}\n\nQuestion: ${q}`, {onText: ({text}) => { const a = $('#aiAns'); if(a) a.innerHTML = `<p>${esc(text)}</p>`; }});
+    const a = $('#aiAns'); if(a) a.innerHTML = `<p>${esc(r.text)}</p><p class="small muted">Written by AI from the sources listed below. Check the cited passages before relying on it.</p>`;
+  }catch(err){ const a = $('#aiAns'); if(a) a.innerHTML = `<p class="small muted">The generative AI did not respond (${esc(err && err.code || 'no service')}). The most relevant passages are shown below.</p>`; }
+}
+/* ---------- notebook, export, modal ---------- */
+function finding(b, what){
+  const e = envOf(b), st = b.st;
+  if(what === 'c1'){ const L = c1List(b), matched = L.filter(r => r.status === 'match');
+    return [`Investigations for ${e.name}`, `With ${st.useO2 ? nf(st.o2) + ' ± ' + st.tolO2 + ' % O₂' : 'oxygen unconstrained'}, ${st.useP ? nf(st.p) + ' kPa ± ' + st.tolP + ' %' : 'pressure unconstrained'}${st.useFl ? ', flow ' + nf(st.fl) + ' ± ' + st.tolFl + ' cm/s' : ''}: ${matched.length} of ${L.length} investigations have an experimental match. Ranked by ${st.rank === 'relevance' ? 'mission relevance' : st.rank === 'overall' ? 'combined score' : 'compatible evidence'}, the leaders are ${L.slice(0, 4).map(r => r.v.acr + ' (evidence ' + nf(r.evidenceScore, 0) + ', relevance ' + nf(r.missionScore, 0) + ')').join(', ')}.`, [1]]; }
+  if(what === 'cmp'){ const vs = st.cmp.map(byId), aff = cmpAffinity(st);
+    return [`Comparison: ${vs.map(v => v.acr).join(', ')}`, vs.map((a, i) => vs.slice(i + 1).map(c => `${a.acr} and ${c.acr}: affinity ${nf(sim(a, c).s * 100, 0)} %`).join('; ')).filter(Boolean).join('; ') + `. Lowest affinity ${nf(aff * 100, 0)} %, so these investigations ${aff >= AFF_MIN ? 'may be pooled for modelling' : 'are NOT pooled for modelling'}.`, [1]]; }
+  if(what === 'model' && st.last){ const m = st.last;
+    return [`Model: ${m.y} against ${m.x}`, `${m.method}, ${m.group}${m.preset ? ` (preconfigured analysis: ${m.preset})` : ' (exploratory, no preassigned interpretation)'}. ${m.eq}. Fit on these data: ${m.metric}, n = ${m.n}. ${m.cv ? `Out-of-sample validation: Q² = ${nf(m.cv.q2, 3)} over ${m.cv.groups} groups.` : 'No out-of-sample validation was possible, so the fit figure is not evidence of predictive skill.'} Value at x = ${nf(m.xq, 2)}: ${m.yq == null ? 'no value' : nf(m.yq, 3)} (${m.inside ? 'interpolation' : 'EXTRAPOLATION, not validated experimentally'}; data span ${nf(m.range[0], 2)} to ${nf(m.range[1], 2)}).`, m.inside ? [1, 3] : [1, 4]]; }
+  if(what === 'prev'){ const c = prevCalc(b);
+    return [`Prevention in ${e.name}`, `PMMA rod of ${nf(st.r, 3)} cm radius with ${nf(st.U, 0)} cm/s ventilation: limiting O₂ of ${nf(c.limUg)} % in microgravity and ${nf(c.lim)} % at ${nf(e.g, 3)} g under the U_b = 20·g^${nf(st.gexp, 3)} hypothesis. Against the habitat's ${nf(e.o2)} % O₂ (partial pressure ${nf(pO2(e.o2, e.p), 1)} kPa) the condition lies ${nf(Math.abs(c.margin))} points ${c.margin > 0 ? 'above' : 'below'} the estimated boundary. Extrapolated from an equation calibrated on PMMA rods at about 1 atm; speaks only for that geometry and needs experimental validation.`, [1, 3, 4]]; }
+  if(what === 'det') return [`Detection`, `With the real microgravity smoke of SAME, the ISS photoelectric unit detected cellulose, silicone and Pyrell smoke well but failed frequently on Teflon and Kapton. That result applies to the units and the smoke SAME tested, not to detector technologies in general. No single detector covers every smoke.`, [1, 2]];
+  if(what === 'sup'){ const Q = T.filter(t => t.plot && t.outr === 'flow reduced to extinction'), o2 = Q.map(t => t.o2b).filter(v => v != null);
+    const fx = T.filter(t => t.plot && INV[t.inv].id === 'PSI-69'), fo = fx.map(t => t.o2b).filter(v => v != null), fp = fx.map(t => t.p).filter(v => v != null);
+    return [`Suppression`, `Cutting the ventilation extinguished flames in ${Q.length} BASS-II solid-material tests, with oxygen reaching ${nf(Math.max(...o2))} % — below this habitat's ${nf(e.o2)} %, so the design condition is not covered. ACME BRE saw sustained burning with no flow at elevated oxygen. FLEX contributes droplet extinction data with CO₂ and helium over ${nf(Math.min(...fo))} to ${nf(Math.max(...fo))} % O₂ and ${nf(Math.min(...fp))} to ${nf(Math.max(...fp))} kPa, for liquid droplets rather than solids.`, [1]]; }
+  if(what === 'out'){ const o = outputs(b);
+    return [`Actionable drafts: ${e.name}`, `Evidence compatibility for solid materials: ${CSTATE[o.ev.state][1]} (${o.ev.n} tests).\n\n` + [...o.P, ...o.D2, ...o.Su].map(x => '• ' + x[1]).join('\n'), [1, 2, 3, 4]]; }
+  return null;
+}
+const nbMd = () => `# Findings notebook (FlameBench)\n\n` + S.nb.map((n, i) => `## ${i + 1}. ${n.title}\n\n${n.text}\n\nEvidence levels: ${n.lv.join(', ')}. Block ${n.blk}.\n`).join('\n') + `\nEvidence levels: 1 official PSI; 2 other measured test; 3 calculated; 4 hypothesis.\nData source: NASA PSI (CC0-1.0); cite the DOI of every investigation used.\nFlameBench does not certify materials and does not predict in general what will burn on the Moon or Mars.\n`;
+function openModal(html){ $('#modalBox').innerHTML = html; $('#modal').classList.add('on'); }
+function showNb(){
+  openModal(`<div class="flex"><h2>Findings notebook</h2><span class="sp"></span>${SAMPLE && S.nb.length ? `<button data-act="nbai">Draft a synthesis with AI</button>` : ''}<button data-act="dl" data-fmt="nb" ${S.nb.length ? '' : 'disabled title="The notebook is empty"'}>Download (.md)</button><button data-act="close">Close</button></div>
+   <p class="small muted">Findings saved from any block gather here with their evidence level, to build the final conclusion.</p>
+   ${S.nb.length ? S.nb.map((n, i) => `<div class="src"><div class="flex"><b>${i + 1}. ${esc(n.title)}</b>${n.lv.map(lv).join(' ')}<span class="sp"></span><button class="ghost" data-act="nbdel" data-i="${i}" aria-label="Delete finding">Delete</button></div><p style="white-space:pre-wrap">${esc(n.text)}</p></div>`).join('') : '<p>No findings yet. Use the Save finding button in any step.</p>'}<div id="nbSyn"></div>`);
+}
+function showAbout(){
+  openModal(`<div class="flex"><h2>Sources and method</h2><span class="sp"></span><button data-act="close">Close</button></div>
+   <p>FlameBench gathers the combustion investigations of NASA Physical Sciences Informatics (PSI) into one comparable table and adds external evidence with its level stated. It is built to explore and investigate.</p>
+   <div class="note crit"><b>What FlameBench does not do.</b> It does not certify materials, and it does not predict in general what will burn on the Moon or Mars. Where it shows a boundary, a limit or a prediction, that figure is a calculation or an extrapolation from a specific experiment, and the view says so. Certification is governed by NASA-STD-6001, not by this tool.</div>
+   <h3>Data</h3><ul class="tight">
+    <li>${lv(1)} ${ni(T.filter(isIndividual).length)} individual tests, drawn from ${ni(T.length)} normalised rows across ${D.raw.length} PSI experimental tables. The remaining ${ni(T.length - T.filter(isIndividual).length)} rows are test-day and campaign summaries, dataset and session metadata, source footnotes and pre-test flow visualisations: they are kept for reference and excluded from counts, charts and models. Units are normalised to O₂ in %, pressure in kPa and air speed in cm/s. The BASS As Run matrix supplies oxygen, pressure, flow and crew observations. Downloaded 14 and 15 November 2026. Licence CC0-1.0.</li>
+    <li>${lv(2)} Measured tests outside the PSI tables: Saffire IV to VI, LUCI, and the 1-g limit cited in the BASS-II report.</li>
+    <li>${lv(3)} Calculated values: the fits in the modelling block, equation 6.1 of BASS-II, and the gravity bridge.</li>
+    <li>${lv(4)} Declared assumptions, such as the Mars habitat atmosphere and the gravity exponent.</li></ul>
+   <h3>Normalisation decisions, and what is preserved</h3><ul class="tight">
+    <li>The comparable air flow is the velocity in cm/s. Fuel flow rates in mg/s or sccm belong to each burner and stay in the original tables.</li>
+    <li>Pressure has three states: measured, assumed and no data. Where a table omits pressure and the experiment ran in a pressurised cabin (MSG or Cygnus), 101.3 kPa is assumed and marked ≈. A row with no pressure is shown as "no data", never as out of range.</li>
+    <li>Measurement qualifiers are preserved. A cell written "~ 21.5" is approximate, "&lt; 0.1" is a bound and "22.1 to 22.0" is a range; none is presented as an exact reading, and bounds are excluded from ordinary regressions by default.</li>
+    <li>Oxygen is kept as calibrated initial and calibrated final separately for BASS-II, with a validity flag. Initial oxygen never stands in for final oxygen.</li>
+    <li>The sign of the recorded flow is preserved. Charts that compare speed use magnitudes and say so; the signed original stays in the data and in the export.</li>
+    <li>Quality is judged per variable. A suspect flow does not discard that row's oxygen and pressure.</li>
+    <li>Where a source row leaves the material blank, it is inherited only when the source supports the continuity, and the row it was inherited from is recorded.</li></ul>
+   <h3>Use of artificial intelligence</h3><ul class="tight">
+    <li>The summaries, the pillar classification and the per-environment relevance of each investigation were written with a language model (Claude) from the PSI metadata and reports, and reviewed by the team.</li>
+    <li>The assistant retrieves passages from those texts; where the view allows it, a language model writes the answer using only those passages and cites them. It is instructed to abstain when the passages do not cover the question.</li>
+    <li>Numbers in tables and charts come from the data, not from the language model.</li></ul>
+   <h3>External sources</h3><ul class="tight">${EXT.map(x => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.src)}</a>: ${esc(x.title)}${x.status ? ` — <b>${esc(x.status)}</b>` : ''}</li>`).join('')}<li><a href="https://psi.nasa.gov/physci/repo/search?q=combustion&data_source=psi&data_type=investigation" target="_blank" rel="noopener">NASA PSI, combustion investigations</a></li></ul>
+   <h3>Limits and assumptions</h3><ul class="tight">
+    <li>The boundary equation is calibrated on PMMA rods at about 1 atm. Outside that case it is a reference curve and classifies nothing.</li>
+    <li>The gravity bridge U_b = 20·g^n is a modelling hypothesis. Checking it at 1 g cannot validate the exponent, because 1^n = 1 for every n. A sensitivity check over n is provided.</li>
+    <li>A fit metric such as R² measures agreement with the rows used to fit. Where the data allow it, a grouped out-of-sample validation is reported separately; where they do not, that is stated rather than papered over.</li>
+    <li>Relevance rankings cover six environments. Earth and EVA preparation reuse the closest rated environment, and the view says so.</li>
+    <li>Rockets and propellants are outside the scope of this dataset.</li></ul>
+   <p class="small muted">Data bundle built ${esc(D.built)}; external and time-dependent claims last checked ${esc(D.checked || D.built)}.</p>`);
+}
+async function saveFile(name, text){
+  if(window.claude && window.claude.use){ try{ const d = await window.claude.use('downloads'); if(d){ await d.save({filename:name, data:text}); return; } }catch(e){ if(e && e.code === 'declined') return; } return showExport(name, text); }
+  try{ const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type:'text/plain;charset=utf-8'})); a.download = name; document.body.appendChild(a); a.click(); a.remove(); }catch(e){ showExport(name, text); }
+}
+const EXPORT_LIMIT = 400000;
+function showExport(name, text){
+  const over = text.length > EXPORT_LIMIT;
+  openModal(`<div class="flex"><h2>${esc(name)}</h2><span class="sp"></span><button data-act="copy">Copy</button><button data-act="close">Close</button></div>
+   <p class="small muted">This view cannot download files. Copy the content and paste it into a file with that name.</p>
+   ${over ? `<div class="note crit"><b>Content truncated.</b> This export is ${ni(text.length)} characters and only the first ${ni(EXPORT_LIMIT)} are shown below, so what you copy is <b>not</b> the complete export. Narrow the selection, or export in parts, before relying on it.</div>` : ''}
+   <textarea id="expTxt" readonly>${esc(over ? text.slice(0, EXPORT_LIMIT) : text)}</textarea>`);
+}
+function download(b, fmt){
+  if(fmt === 'nb') return saveFile('flamebench_notebook.md', nbMd());
+  if(fmt === 'proto') return saveFile('flamebench_actionable_drafts.md', protoMd(b));
+  if(fmt === 'project') return saveFile('flamebench_project.json', exportProject());
+  const d = c2Cols(b), st = b.st, on = d.cols.filter(c => st.cols[c.k]), ids = d.raw ? [d.inv.id] : uniq(d.rows.map(r => INV[r.inv].id));
+  if(fmt === 'csv') return saveFile('flamebench_data.csv', '﻿' + csvOf(d.rows, on));
+  if(fmt === 'json') return saveFile('flamebench_data.json', JSON.stringify({source:'NASA PSI', built:D.built, checked:D.checked || D.built, table: d.raw ? d.file : 'normalised', individualTestsOnly: !!st.onlyTests, censoredExcluded: !!st.exCensored, variables:on.map(c => c.lab), rows:d.rows.map(r => Object.fromEntries(on.map(c => [c.lab, r[c.k] == null ? null : r[c.k]])))}, null, 1));
+  if(fmt === 'cite') return saveFile('psi_citations.txt', ids.map(id => { const v = byId(id); return `${v.title} (${v.acr}). NASA Physical Sciences Informatics, ${id}. https://doi.org/${v.doi}`; }).join('\n') + '\n\nPSI data are licensed CC0-1.0. PSI asks that the DOI of every investigation used be cited.\n');
+  if(fmt === 'model') return saveFile('flamebench_model.json', JSON.stringify({...st.last, investigations:ids, iterations:st.hist, note:'A fit metric is measured on the rows used to fit. Where present, cv is a grouped out-of-sample validation. A prediction outside the stated range is an extrapolation and is not validated experimentally.'}, null, 1));
+}
+/* ---------- workspace persistence (commit 14) ----------
+   Browser storage is unavailable or throws in some contexts, so every access is
+   wrapped and the app keeps working without it. The payload is versioned and
+   validated before it is applied. */
+const WS_KEY = 'flamebench.workspace';
+const WS_VERSION = 1;
+function wsAvailable(){ try{ const k = '__fb_probe'; localStorage.setItem(k, '1'); localStorage.removeItem(k); return true; }catch(e){ return false; } }
+const WS_OK = wsAvailable();
+function serializeState(){
+  return {v:WS_VERSION, saved:new Date().toISOString(), built:D.built,
+          blocks:S.blocks.map(b => ({id:b.id, type:b.type, step:b.step, link:b.link, st:b.st})),
+          active:S.active, n:S.n, nb:S.nb};
+}
+const exportProject = () => JSON.stringify(serializeState(), null, 1);
+function validState(o){
+  return o && typeof o === 'object' && o.v === WS_VERSION && Array.isArray(o.blocks) && Array.isArray(o.nb)
+    && o.blocks.every(b => b && typeof b.id === 'string' && COMP[b.type] && b.st && typeof b.st === 'object');
+}
+function applyState(o){
+  // Merge each block's stored settings onto the current defaults, so a payload
+  // written by an older build cannot leave a block missing a setting.
+  S.blocks = o.blocks.map(b => ({id:b.id, type:b.type, step:+b.step || 0, link:b.link || null, st:{...defaults(b.type), ...b.st}}));
+  S.active = S.blocks.some(b => b.id === o.active) ? o.active : (S.blocks[0] ? S.blocks[0].id : null);
+  S.n = +o.n || S.blocks.length;
+  S.nb = o.nb.filter(n => n && n.title && n.text).map(n => ({title:String(n.title), text:String(n.text), lv:Array.isArray(n.lv) ? n.lv : [1], blk:n.blk || ''}));
+  renderAll();
+}
+function saveWorkspace(){
+  if(!WS_OK) return {ok:false, msg:'Browser storage is not available in this view, so the workspace cannot be saved here. Use Download project instead.'};
+  try{ localStorage.setItem(WS_KEY, JSON.stringify(serializeState())); return {ok:true, msg:'Workspace saved in this browser.'}; }
+  catch(e){ return {ok:false, msg:'Could not save: storage refused the write' + (e && e.name ? ' (' + e.name + ')' : '') + '. Use Download project instead.'}; }
+}
+function loadWorkspace(){
+  if(!WS_OK) return {ok:false, msg:''};
+  let raw = null;
+  try{ raw = localStorage.getItem(WS_KEY); }catch(e){ return {ok:false, msg:''}; }
+  if(!raw) return {ok:false, msg:''};
+  let o = null;
+  try{ o = JSON.parse(raw); }catch(e){ return {ok:false, msg:'A saved workspace was found but could not be read, so a new one was started.'}; }
+  if(!validState(o)) return {ok:false, msg:`A saved workspace was found but its version (${o && o.v}) does not match this build (${WS_VERSION}), so it was not restored. A new workspace was started; the saved one is still in storage.`};
+  try{ applyState(o); return {ok:true, msg:`Workspace restored from ${new Date(o.saved).toLocaleString('en-US')}.`}; }
+  catch(e){ return {ok:false, msg:'A saved workspace was found but could not be applied, so a new one was started.'}; }
+}
+function clearWorkspace(){ try{ localStorage.removeItem(WS_KEY); }catch(e){} }
+function toast(msg, bad){
+  const h = $('#canvasWrap'); if(!h) return;
+  const d = document.createElement('div');
+  d.className = 'note' + (bad ? ' crit' : ' ok');
+  d.style.cssText = 'position:absolute;right:10px;bottom:4px;z-index:5;max-width:420px';
+  d.textContent = msg; h.appendChild(d);
+  setTimeout(() => d.remove(), 6000);
+}
+/* ---------- events ---------- */
+function setKey(b, key, v){ if(key === 'x' || key === 'y' || key === 'gcol' || key === 'gval' || key === 'method' || key === 'exCensored') b.st.last = null; if(key === 'gcol') b.st.gval = ''; if(key === 'x') b.st.xqAuto = true; if(key === 'x' || key === 'y' || key === 'method') b.st.preset = ''; b.st[key] = v; }
+document.addEventListener('click', ev => {
+  const t = ev.target.closest('[data-act]'); if(!t) { if(ev.target.id === 'modal') $('#modal').classList.remove('on'); return; }
+  if(t.disabled) return;
+  const act = t.dataset.act, b = cur();
+  if(act === 'cmp' || act === 'col' || act === 'c2inv' || act === 'link' || act === 'preset' || act === 'ds' || act === 'preset2') return; // handled on change
+  if(act === 'add'){ addBlock(t.dataset.type); return; }
+  if(act === 'del'){ ev.stopPropagation(); S.blocks = S.blocks.filter(x => x.id !== t.dataset.id); S.blocks.forEach(x => { if(x.link === t.dataset.id) x.link = null; }); if(S.active === t.dataset.id) S.active = S.blocks.length ? S.blocks[S.blocks.length - 1].id : null; return renderAll(); }
+  if(act === 'step'){ S.active = t.dataset.id; blk(S.active).step = +t.dataset.step; syncLink(blk(S.active)); return renderAll(); }
+  if(act === 'detail'){ if(ev.target.matches('input')) return; b.st.sel = t.dataset.inv; b.step = 1; return renderAll(); }
+  if(act === 'set'){ const v = t.dataset.val; setKey(b, t.dataset.key, v); if(t.dataset.key === 'yax') return renderWork(); renderRibbon(); renderWork(); renderCanvas(); return; }
+  if(act === 'force'){ b.st.force = true; return renderWork(); }
+  if(act === 'axreset'){ b.st.axP = null; b.st.axFl = null; renderRibbon(); return renderWork(); }
+  if(act === 'colsAll'){ const d = c2Cols(b); d.cols.forEach(c => b.st.cols[c.k] = t.dataset.v === '1'); return renderWork(); }
+  if(act === 'hist'){
+    // Always either save something or say why it cannot (commit 15).
+    if(!b.st.last){ toast('Nothing to save yet: fit a model in step 3 first.', true); return; }
+    if(t.dataset.busy === '1') return; t.dataset.busy = '1';
+    b.st.hist.push({...b.st.last}); renderWork(); renderCanvas();
+    toast(`Iteration ${b.st.hist.length} saved: ${b.st.last.y} against ${b.st.last.x}.`);
+    return;
+  }
+  if(act === 'dl') return download(b, t.dataset.fmt);
+  if(act === 'save'){
+    const f = finding(b, t.dataset.what);
+    if(!f){ toast(t.dataset.what === 'model' ? 'No fitted model to save: choose variables that produce a fit in step 3.' : 'Nothing to save from this step yet.', true); return; }
+    S.nb.push({title:f[0], text:f[1], lv:f[2], blk:b.id});
+    $('#btnNb').textContent = `Notebook (${S.nb.length})`;
+    t.textContent = 'Saved to the notebook'; t.disabled = true;
+    toast(`Saved to the notebook: ${f[0]}.`);
+    return;
+  }
+  if(act === 'save-ws'){ const r = saveWorkspace(); toast(r.msg, !r.ok); return; }
+  if(act === 'nb') return showNb();
+  if(act === 'nbdel'){ S.nb.splice(+t.dataset.i, 1); $('#btnNb').textContent = `Notebook (${S.nb.length})`; return showNb(); }
+  if(act === 'about') return showAbout();
+  if(act === 'close') return $('#modal').classList.remove('on');
+  if(act === 'copy'){ const x = $('#expTxt'); x.select(); try{ navigator.clipboard.writeText(x.value).then(() => t.textContent = 'Copied', () => document.execCommand('copy')); }catch(e){ document.execCommand('copy'); } return; }
+  if(act === 'toggleAi'){ const off = $('#app').classList.toggle('noai'); $('#btnAi').textContent = off ? 'Show assistant' : 'Hide assistant'; return drawWires(); }
+  if(act === 'aiq'){ $('#aiQ').value = t.dataset.q; return ask(t.dataset.q); }
+  if(act === 'askinv'){ const v = byId(t.dataset.inv); $('#app').classList.remove('noai'); const q = `What does ${v.acr} contribute to fire safety?`; $('#aiQ').value = q; return ask(q); }
+  if(act === 'example') return example();
+  if(act === 'clear'){ S.blocks = []; S.active = null; S.n = 0; return renderAll(); }
+  if(act === 'aicmp' && SAMPLE){ const vs = b.st.cmp.map(byId), o = $('#aicmpOut'); o.innerHTML = '<p class="muted">Writing…</p>'; SAMPLE(`Compare these NASA microgravity combustion investigations for a fire-safety engineer. In English, 5 to 7 sentences: how they are alike, how they differ, and whether it makes sense to compare their data. Use only this information, and say plainly if the data should not be combined.\n\n${vs.map(v => `${v.acr}: ${v.sum} Fuel: ${v.fuels}. Variables: ${v.varied}. Measurements: ${v.meas.map(m => D.meas[m]).join(', ')}. Results: ${v.res.join(' ')}`).join('\n\n')}`).then(r => o.innerHTML = `<div class="note info">${esc(r.text)}<div class="small muted">Written by AI from the records above.</div></div>`, () => o.innerHTML = '<p class="small muted">The generative AI did not respond.</p>'); return; }
+  if(act === 'nbai' && SAMPLE){ const o = $('#nbSyn'); o.innerHTML = '<p class="muted">Writing…</p>'; SAMPLE(`Write in English an integrated conclusion of 6 to 9 sentences for a fire-safety report on space habitats, using ONLY these findings. State clearly which parts are backed by measured data and which are calculated or hypothesis.\n\n${nbMd()}`).then(r => o.innerHTML = `<div class="note info" style="white-space:pre-wrap">${esc(r.text)}<div class="small muted">AI draft; review it before use.</div></div>`, () => o.innerHTML = '<p class="small muted">The generative AI did not respond.</p>'); return; }
+});
+document.addEventListener('change', ev => {
+  const t = ev.target, b = cur(), act = t.dataset.act;
+  if(act === 'cmp'){ const id = t.dataset.inv, c = b.st.cmp; if(t.checked){ if(c.length >= 4){ t.checked = false; toast('Up to four investigations can be compared at once.', true); return; } c.push(id); } else b.st.cmp = c.filter(x => x !== id); b.st.force = false; S.blocks.forEach(syncLink); return renderCanvas(); }
+  if(act === 'col'){ b.st.cols[t.dataset.k] = t.checked; return renderWork(); }
+  if(act === 'c2inv'){ const id = t.dataset.inv; b.st.invs = t.checked ? uniq(b.st.invs.concat(id)) : b.st.invs.filter(x => x !== id); b.st.cols = null; if(b.st.ds !== 'norm') b.st.ds = 'norm'; pickXY(b); return renderAll(); }
+  if(act === 'link'){ const x = blk(t.dataset.id); x.link = t.value || null; S.active = x.id; syncLink(x); return renderAll(); }
+  if(act === 'preset'){ const e = ENV.find(x => x.id === t.value); b.st.env = e.id; b.st.o2 = e.o2; b.st.p = e.p; if(b.type === 'C1'){ b.st.grav = e.g === 0 ? 'ug' : e.g === 1 ? '1g' : 'partial'; b.st.useO2 = b.st.useP = true; } S.blocks.forEach(syncLink); return renderAll(); }
+  if(act === 'preset2'){ if(t.value) applyPreset(b, t.value); else { b.st.preset = ''; } return renderWork(); }
+  if(act === 'ds'){ b.st.ds = t.value; b.st.cols = null; b.st.hist = []; b.st.method = 'lin'; pickXY(b); return renderAll(); }
+});
+document.addEventListener('input', ev => {
+  const t = ev.target, key = t.dataset.bind, b = cur(); if(!key || !b) return;
+  const isNum = t.type === 'range' || t.type === 'number' || /^tol/.test(key);
+  let v = t.type === 'checkbox' ? t.checked : isNum ? (t.value === '' ? null : +t.value) : t.value;
+  if(isNum && v != null && isNaN(v)) return;            // ignore an in-progress entry such as "3e"
+  setKey(b, key, v);
+  const o = document.querySelector(`[data-out="${key}"]`); if(o) o.textContent = nf(v, 2);
+  if(key === 'p'){ const q = document.querySelector('[data-out="psi"]'); if(q) q.textContent = `(${nf(kpa2psi(v), 1)} psi)`; }
+  /* The prediction field must not rebuild the work area on every keystroke:
+     doing so replaced the input and took the caret with it (commit 15). Only the
+     prediction output is updated here; the chart follows on blur or Enter. */
+  if(t.dataset.live === 'pred'){ updatePrediction(b); return; }
+  if(t.tagName === 'SELECT' && key === 'gcol'){ renderWork(); return; }
+  if(b.type === 'C1') S.blocks.forEach(x => { if(x.link === b.id && x.type === 'C2' && key === 'o2') x.st.xq = v; });
+  renderWork(); renderCanvas();
+});
+/* Recompute only the predicted value and its interpolation/extrapolation note. */
+function updatePrediction(b){
+  const out = $('#predOut'), kind = $('#predKind'); if(!out) return;
+  const st = b.st, m = st.last;
+  const d = c2Cols(b), nums = d.cols.filter(c => c.num);
+  const cx = nums.find(c => c.k === st.x), cy = nums.find(c => c.k === st.y);
+  if(!cx || !cy) return;
+  const cats = d.cols.filter(c => !c.num), gc = cats.find(c => c.k === st.gcol);
+  let rows = d.rows; if(gc && st.gval) rows = rows.filter(r => r[gc.k] === st.gval);
+  const P = rows.map(r => [val(r, cx, st), val(r, cy, st)]).filter(p => p[0] != null && p[1] != null);
+  if(P.length < 3) return;
+  const xs = P.map(p => p[0]), ys = P.map(p => p[1]);
+  const fit = doFit(st.method, xs, ys);
+  if(fit.err){ out.textContent = 'no value'; if(kind) kind.textContent = fit.err; return; }
+  const xq = +st.xq, lo = Math.min(...xs), hi = Math.max(...xs);
+  const yq = fit.f(xq), inside = xq >= lo && xq <= hi;
+  out.textContent = (yq == null || !isFinite(yq)) ? 'no value' : nf(yq, 3);
+  if(kind) kind.textContent = isNaN(xq) ? 'enter a number' : inside ? 'Interpolation, inside the measured range' : 'Extrapolation, outside the measured range';
+  if(m){ m.xq = xq; m.yq = yq; m.inside = inside; }
+}
+/* Pressing Enter or leaving the prediction field redraws the chart. */
+document.addEventListener('change', ev => { if(ev.target.dataset && ev.target.dataset.live === 'pred'){ renderWork(); renderCanvas(); } });
+document.addEventListener('keydown', ev => { if(ev.key === 'Enter' && ev.target.dataset && ev.target.dataset.live === 'pred'){ ev.preventDefault(); renderWork(); renderCanvas(); } });
+document.addEventListener('submit', ev => { if(ev.target.id === 'aiForm'){ ev.preventDefault(); ask($('#aiQ').value); } });
+document.addEventListener('keydown', ev => { if(ev.key === 'Escape') $('#modal').classList.remove('on'); if((ev.key === 'Enter' || ev.key === ' ') && ev.target.classList.contains('cell')){ ev.preventDefault(); ev.target.click(); } });
+/* drag and drop */
+document.addEventListener('dragstart', ev => { const c = ev.target.closest && ev.target.closest('.comp'); if(c){ ev.dataTransfer.setData('text/plain', c.dataset.comp); ev.dataTransfer.effectAllowed = 'copy'; } });
+const cw = $('#canvasWrap');
+cw.addEventListener('dragover', ev => { ev.preventDefault(); cw.classList.add('over'); document.querySelectorAll('.blk.drop').forEach(x => x.classList.remove('drop')); const k = ev.target.closest('.blk'); if(k && blk(k.dataset.blk).type === 'C1') k.classList.add('drop'); });
+cw.addEventListener('dragleave', ev => { if(!cw.contains(ev.relatedTarget)) cw.classList.remove('over'); });
+cw.addEventListener('drop', ev => { ev.preventDefault(); cw.classList.remove('over'); const type = ev.dataTransfer.getData('text/plain'); if(!COMP[type]) return; const k = ev.target.closest('.blk'), tgt = k && blk(k.dataset.blk); addBlock(type, type !== 'C1' && tgt && tgt.type === 'C1' ? tgt.id : null); });
+window.addEventListener('resize', drawWires);
+function example(){
+  S = {blocks:[], active:null, nb:S.nb, n:0};
+  const a = {id:'A', type:'C1', step:0, link:null, st:defaults('C1')}; a.st.cmp = ['PSI-25', 'PSI-99']; a.st.sel = 'PSI-25';
+  const b2 = {id:'B', type:'C2', step:0, link:null, st:defaults('C2')}; b2.st.xq = 34;
+  const c = {id:'C', type:'C3', step:0, link:'A', st:defaults('C3')};
+  S.blocks = [a, b2, c]; S.n = 3; S.active = 'A'; renderAll();
+}
+/* Boot: restore a saved workspace when one is available and valid, otherwise
+   start from the example project. A storage failure is never fatal. */
+renderAi();
+(function boot(){
+  const r = loadWorkspace();
+  if(!r.ok) example();
+  if(r.msg) setTimeout(() => toast(r.msg, !r.ok), 50);
+  if(!WS_OK){ const btn = $('#btnWs'); if(btn){ btn.title = 'Browser storage is unavailable in this view; use the notebook or the data exports instead'; } }
+})();
+if(window.claude && window.claude.use){ window.claude.use('sample').then(s => { if(s){ SAMPLE = s; const bd = $('#aiBadge'); if(bd){ bd.textContent = 'Generative AI active'; bd.classList.add('in'); } renderWork(); } }).catch(() => {}); }
+</script>
+</body>
+</html>
